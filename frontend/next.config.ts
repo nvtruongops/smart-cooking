@@ -8,4 +8,5 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
 };
 
-export default nextConfig;
+// For AWS Amplify WEB_COMPUTE platform
+export default require('@aws-amplify/adapter-nextjs/experimental-build').withAmplifyConfig(nextConfig);
