@@ -1,0 +1,20 @@
+# AWS Amplify Environment Variables
+# Copy-paste these into AWS Console
+
+NEXT_PUBLIC_API_URL
+https://h5qdriw2jh.execute-api.ap-southeast-1.amazonaws.com/prod/
+
+NEXT_PUBLIC_USER_POOL_ID
+ap-southeast-1_Vnu4kcJin
+
+NEXT_PUBLIC_USER_POOL_CLIENT_ID
+7h6n8dal12qpuh3242kg4gg4t3
+
+NEXT_PUBLIC_AWS_REGION
+ap-southeast-1
+
+NEXT_PUBLIC_ENVIRONMENT
+production
+
+NODE_ENV
+production

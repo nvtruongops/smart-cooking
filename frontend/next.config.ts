@@ -1,12 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // output: 'export', // Temporarily disabled for dynamic routes
+  // output: 'export', // Static export doesn't work well with client-side dynamic routes
   images: {
-    unoptimized: true,
+    unoptimized: true, // Required for Amplify
   },
   trailingSlash: true,
-  outputFileTracingRoot: __dirname,
 };
 
 export default nextConfig;
