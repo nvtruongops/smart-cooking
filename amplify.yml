@@ -1,77 +1,17 @@
 version: 1
-# AWS Amplify Build Configuration for Smart Cooking MVP
-# Framework: Next.js 15.5.4 with App Router (SSR)
-# Region: ap-southeast-1
-
 frontend:
   phases:
     preBuild:
       commands:
         - cd frontend
-        - echo "Installing dependencies..."
         - npm ci --legacy-peer-deps
-        
     build:
       commands:
-        - echo "Building Next.js production bundle..."
-        - echo "Environment: $NODE_ENV"
         - npm run build
-        - echo "✓ Build completed successfully"
-        
   artifacts:
-    # Next.js output directory
     baseDirectory: frontend/.next
     files:
       - '**/*'
-      
   cache:
     paths:
       - frontend/node_modules/**/*
-      # Cache dependencies and build cache for faster rebuilds
-      - node_modules/**/*
-      - .next/cache/**/*
-      - .npm/**/*
-      
-customHeaders:
-  # Security headers for all routes
-  - pattern: '**/*'
-    headers:
-      # Force HTTPS
-      - key: 'Strict-Transport-Security'
-        value: 'max-age=31536000; includeSubDomains; preload'
-      # Prevent clickjacking
-      - key: 'X-Frame-Options'
-        value: 'SAMEORIGIN'
-      # Prevent MIME sniffing
-      - key: 'X-Content-Type-Options'
-        value: 'nosniff'
-      # XSS protection
-      - key: 'X-XSS-Protection'
-        value: '1; mode=block'
-      # Referrer policy
-      - key: 'Referrer-Policy'
-        value: 'strict-origin-when-cross-origin'
-      # Content Security Policy (adjust as needed)
-      - key: 'Content-Security-Policy'
-        value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.execute-api.ap-southeast-1.amazonaws.com https://*.cloudfront.net;"
-      # Permissions policy
-      - key: 'Permissions-Policy'
-        value: 'camera=(), microphone=(), geolocation=()'
-
-  # Cache static assets aggressively
-  - pattern: '_next/static/**/*'
-    headers:
-      - key: 'Cache-Control'
-        value: 'public, max-age=31536000, immutable'
-        
-  # Cache public assets
-  - pattern: 'images/**/*'
-    headers:
-      - key: 'Cache-Control'
-        value: 'public, max-age=86400'
-        
-  # Don't cache HTML pages (for SSR freshness)
-  - pattern: '**/*.html'
-    headers:
-      - key: 'Cache-Control'
-        value: 'no-cache, no-store, must-revalidate'
