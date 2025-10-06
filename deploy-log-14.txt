@@ -1,0 +1,151 @@
+2025-10-06T19:00:37.824Z [INFO]: # Build environment configured with Standard build compute type: 8GiB Memory, 4vCPUs, 128GB Disk Space
+2025-10-06T19:00:39.167Z [INFO]: # Cloning repository: git@github.com:nvtruongops/smart-cooking.git
+2025-10-06T19:00:40.621Z [INFO]: 
+2025-10-06T19:00:40.622Z [INFO]: Cloning into 'smart-cooking'...
+2025-10-06T19:00:40.622Z [INFO]: # Switching to commit: 2145c32a9137f0065cc3acc0a3f55291dbce6109
+2025-10-06T19:00:40.655Z [INFO]: Note: switching to '2145c32a9137f0065cc3acc0a3f55291dbce6109'.
+                                 You are in 'detached HEAD' state. You can look around, make experimental
+                                 changes and commit them, and you can discard any commits you make in this
+                                 state without impacting any branches by switching back to a branch.
+                                 If you want to create a new branch to retain commits you create, you may
+                                 do so (now or later) by using -c with the switch command. Example:
+                                 git switch -c <new-branch-name>
+                                 Or undo this operation with:
+                                 git switch -
+                                 Turn off this advice by setting config variable advice.detachedHead to false
+                                 HEAD is now at 2145c32 fix: Use standalone output for Next.js on Amplify
+2025-10-06T19:00:40.697Z [INFO]: Successfully cleaned up Git credentials
+2025-10-06T19:00:40.698Z [INFO]: # Checking for Git submodules at: /codebuild/output/src439613232/src/smart-cooking/.gitmodules
+2025-10-06T19:00:40.704Z [INFO]: # Retrieving environment cache...
+2025-10-06T19:00:40.782Z [INFO]: # Retrieved environment cache
+2025-10-06T19:00:40.783Z [INFO]: ---- Setting Up SSM Secrets ----
+2025-10-06T19:00:40.783Z [INFO]: SSM params {"Path":"/amplify/d3dvp9hmx5nwq7/main/","WithDecryption":true}
+2025-10-06T19:00:40.830Z [WARNING]: !Failed to set up process.env.secrets
+2025-10-06T19:00:41.559Z [INFO]: # No package override configuration found.
+2025-10-06T19:00:41.652Z [INFO]: # Retrieving cache...
+2025-10-06T19:00:41.722Z [INFO]: # Extracting cache...
+2025-10-06T19:00:41.723Z [INFO]: # Extraction completed
+2025-10-06T19:00:41.723Z [INFO]: # Retrieved cache
+2025-10-06T19:00:46.173Z [INFO]: ## Starting Backend Build
+                                 ## Checking for associated backend environment...
+                                 ## No backend environment association found, continuing...
+                                 ## Completed Backend Build
+2025-10-06T19:00:46.185Z [INFO]: {"backendDuration": 0}
+                                 ## Starting Frontend Build
+                                 # Starting phase: preBuild
+                                 # Executing command: npm ci --legacy-peer-deps
+2025-10-06T19:01:06.505Z [INFO]: added 46 packages, and audited 47 packages in 16s
+2025-10-06T19:01:06.511Z [INFO]: 10 packages are looking for funding
+                                 run `npm fund` for details
+                                 found 0 vulnerabilities
+2025-10-06T19:01:06.519Z [INFO]: # Completed phase: preBuild
+                                 # Starting phase: build
+                                 # Executing command: npm run build
+2025-10-06T19:01:06.617Z [INFO]: > frontend@0.1.0 build
+                                 > next build
+2025-10-06T19:01:07.212Z [WARNING]: ⚠ Installing TypeScript as it was not found while loading "next.config.ts".
+2025-10-06T19:01:07.219Z [INFO]: 
+2025-10-06T19:01:07.220Z [INFO]: Installing devDependencies (npm):
+                                 - typescript
+2025-10-06T19:01:11.852Z [INFO]: added 313 packages, and audited 360 packages in 5s
+2025-10-06T19:01:11.857Z [INFO]: 141 packages are looking for funding
+                                 run `npm fund` for details
+                                 found 0 vulnerabilities
+2025-10-06T19:01:11.865Z [INFO]: 
+2025-10-06T19:01:12.076Z [WARNING]: ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+                                    We detected multiple lockfiles and selected the directory of /codebuild/output/src439613232/src/smart-cooking/package-lock.json as the root directory.
+                                    To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+                                    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+                                    Detected additional lockfiles:
+                                    * /codebuild/output/src439613232/src/smart-cooking/frontend/package-lock.json
+2025-10-06T19:01:12.077Z [INFO]: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+2025-10-06T19:01:12.085Z [INFO]: Attention: Next.js now collects completely anonymous telemetry regarding usage.
+2025-10-06T19:01:12.085Z [INFO]: This information is used to shape Next.js' roadmap and prioritize features.
+                                 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+                                 https://nextjs.org/telemetry
+2025-10-06T19:01:12.135Z [INFO]: ▲ Next.js 15.5.4
+2025-10-06T19:01:12.135Z [INFO]: 
+2025-10-06T19:01:12.240Z [INFO]: Creating an optimized production build ...
+2025-10-06T19:01:22.925Z [INFO]: ✓ Compiled successfully in 8.3s
+2025-10-06T19:01:22.931Z [INFO]: Linting and checking validity of types ...
+2025-10-06T19:01:26.887Z [INFO]: ./app/feed/page.tsx
+                                 31:6  Warning: React Hook useEffect has a missing dependency: 'loadFeed'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+                                 ./app/friends/page.tsx
+                                 54:6  Warning: React Hook useEffect has a missing dependency: 'loadFriends'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+                                 ./app/notifications/page.tsx
+                                 38:6  Warning: React Hook useEffect has a missing dependency: 'loadNotifications'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+                                 ./app/recipes/[id]/page.tsx
+                                 49:18  Warning: 'user' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+                                 ./app/settings/privacy/page.tsx
+                                 42:6  Warning: React Hook useEffect has a missing dependency: 'loadSettings'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+                                 ./app/users/[userId]/page-enhanced.tsx
+                                 11:8  Warning: 'Link' is defined but never used.  @typescript-eslint/no-unused-vars
+                                 ./components/comments/CommentInput.tsx
+                                 43:10  Warning: 'mentionQuery' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+                                 ./components/comments/CommentList.tsx
+                                 32:6  Warning: React Hook useEffect has a missing dependency: 'loadComments'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+                                 ./components/notifications/NotificationDropdown.tsx
+                                 35:6  Warning: React Hook useEffect has a missing dependency: 'loadNotifications'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+                                 ./components/posts/CreatePostForm.tsx
+                                 26:10  Warning: 'recipeTitle' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+                                 ./components/recipes/RecipeCard.tsx
+                                 22:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+                                 ./components/recipes/RecipeDetailModal.tsx
+                                 69:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+                                 ./lib/auth.ts
+                                 54:65  Warning: '_result' is defined but never used.  @typescript-eslint/no-unused-vars
+                                 76:57  Warning: '_result' is defined but never used.  @typescript-eslint/no-unused-vars
+                                 215:68  Warning: '_result' is defined but never used.  @typescript-eslint/no-unused-vars
+                                 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+2025-10-06T19:01:29.143Z [INFO]: Collecting page data ...
+2025-10-06T19:01:30.989Z [INFO]: Generating static pages (0/20) ...
+2025-10-06T19:01:31.647Z [INFO]: Generating static pages (5/20)
+2025-10-06T19:01:31.791Z [INFO]: Generating static pages (10/20)
+2025-10-06T19:01:31.791Z [INFO]: Generating static pages (15/20)
+2025-10-06T19:01:31.820Z [INFO]: ✓ Generating static pages (20/20)
+2025-10-06T19:01:32.621Z [INFO]: Finalizing page optimization ...
+2025-10-06T19:01:32.624Z [INFO]: Collecting build traces ...
+2025-10-06T19:01:49.897Z [INFO]: 
+2025-10-06T19:01:49.901Z [INFO]: Route (app)                                 Size  First Load JS
+                                 ┌ ○ /                                    2.86 kB         133 kB
+                                 ├ ○ /_not-found                            994 B         103 kB
+                                 ├ ○ /ai-suggestions                      8.78 kB         135 kB
+                                 ├ ○ /cooking-session                     4.33 kB         131 kB
+                                 ├ ○ /cooking-session/rate                4.59 kB         131 kB
+                                 ├ ○ /dashboard                           3.37 kB         142 kB
+                                 ├ ○ /feed                                3.04 kB         145 kB
+                                 ├ ○ /forgot-password                     2.52 kB         132 kB
+                                 ├ ○ /friends                             4.51 kB         140 kB
+                                 ├ ○ /history                             7.26 kB         134 kB
+                                 ├ ○ /ingredients                          3.4 kB         137 kB
+                                 ├ ○ /ingredients-demo                    2.69 kB         111 kB
+                                 ├ ○ /login                               2.52 kB         132 kB
+                                 ├ ○ /notifications                       1.83 kB         141 kB
+                                 ├ ○ /profile                             3.31 kB         145 kB
+                                 ├ ● /recipes/[id]                        4.19 kB         139 kB
+                                 ├ ○ /register                            2.94 kB         133 kB
+                                 ├ ○ /settings/privacy                    4.24 kB         131 kB
+                                 └ ● /users/[userId]                      3.82 kB         146 kB
+                                 + First Load JS shared by all             102 kB
+                                 ├ chunks/493-65f21eed8a261d3f.js       45.8 kB
+                                 ├ chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB
+                                 └ other shared chunks (total)          1.92 kB
+                                 ○  (Static)  prerendered as static content
+                                 ●  (SSG)     prerendered as static HTML (uses generateStaticParams)
+2025-10-06T19:01:49.934Z [INFO]: # Completed phase: build
+                                 ## Completed Frontend Build
+2025-10-06T19:01:49.976Z [INFO]: ## Build completed successfully
+2025-10-06T19:01:49.977Z [INFO]: # Starting caching...
+2025-10-06T19:01:49.980Z [INFO]: # Creating cache artifact...
+2025-10-06T19:01:49.983Z [INFO]: # Created cache artifact
+2025-10-06T19:01:49.983Z [INFO]: # Uploading cache artifact...
+2025-10-06T19:01:50.079Z [INFO]: # Uploaded cache artifact
+2025-10-06T19:01:50.080Z [INFO]: # Caching completed
+2025-10-06T19:01:50.099Z [INFO]: # Starting build artifact upload process...
+2025-10-06T19:01:53.938Z [INFO]: # Uploading build artifact '__artifacts.zip'...
+2025-10-06T19:01:54.516Z [INFO]: # Build artifact upload completed
+2025-10-06T19:01:54.517Z [INFO]: # Starting environment caching...
+2025-10-06T19:01:54.517Z [INFO]: # Uploading environment cache artifact...
+2025-10-06T19:01:54.596Z [INFO]: # Uploaded environment cache artifact
+2025-10-06T19:01:54.596Z [INFO]: # Environment caching completed
+
