@@ -3,15 +3,13 @@ version: 1
 # Framework: Next.js 15.5.4 with App Router (SSR)
 # Region: ap-southeast-1
 
-appRoot: frontend
-
 frontend:
   phases:
     preBuild:
       commands:
-        # Cache npm dependencies for faster builds
+        - cd frontend
         - echo "Installing dependencies..."
-        - npm ci --cache .npm --prefer-offline
+        - npm ci --legacy-peer-deps
         
     build:
       commands:
@@ -22,12 +20,13 @@ frontend:
         
   artifacts:
     # Next.js output directory
-    baseDirectory: .next
+    baseDirectory: frontend/.next
     files:
       - '**/*'
       
   cache:
     paths:
+      - frontend/node_modules/**/*
       # Cache dependencies and build cache for faster rebuilds
       - node_modules/**/*
       - .next/cache/**/*
