@@ -1,11 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Amplify WEB_COMPUTE auto-detects Next.js App Router
+  output: 'export', // Static HTML export for Amplify WEB platform
   images: {
     unoptimized: true,
   },
   trailingSlash: true,
+  // Disable dynamic routes pre-rendering (client-side only)
+  exportPathMap: async function () {
+    return {
+      '/': { page: '/' },
+    };
+  },
 };
 
 export default nextConfig;
