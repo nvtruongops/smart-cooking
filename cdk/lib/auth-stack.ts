@@ -185,7 +185,7 @@ export class AuthStack extends Construct {
       exportName: `SmartCooking-${environment}-UserPoolClientId`
     });
 
-    new cdk.CfnOutput(this, 'UserPoolDomain', {
+    new cdk.CfnOutput(this, 'UserPoolDomainOutput', {
       value: userPoolDomain.domainName,
       description: 'Cognito User Pool Domain',
       exportName: `SmartCooking-${environment}-UserPoolDomain`

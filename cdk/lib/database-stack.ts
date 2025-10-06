@@ -30,11 +30,9 @@ export class DatabaseStack extends Construct {
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      pointInTimeRecoverySpecification: {
-        pointInTimeRecoveryEnabled: enablePointInTimeRecovery
-      },
-      removalPolicy: environment === 'prod' 
-        ? cdk.RemovalPolicy.RETAIN 
+      pointInTimeRecovery: enablePointInTimeRecovery,
+      removalPolicy: environment === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
         : cdk.RemovalPolicy.DESTROY,
       
       // TTL for automatic cleanup of temporary data
@@ -81,6 +79,21 @@ export class DatabaseStack extends Construct {
       },
       sortKey: {
         name: 'GSI3SK',
+        type: dynamodb.AttributeType.STRING
+      },
+      projectionType: dynamodb.ProjectionType.ALL
+    });
+
+    // GSI4: Reverse friendship lookup (who friended me)
+    // Used to query friendships from the friend's perspective
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'GSI4',
+      partitionKey: {
+        name: 'GSI4PK',
+        type: dynamodb.AttributeType.STRING
+      },
+      sortKey: {
+        name: 'GSI4SK',
         type: dynamodb.AttributeType.STRING
       },
       projectionType: dynamodb.ProjectionType.ALL

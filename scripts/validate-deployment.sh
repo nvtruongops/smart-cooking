@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Default values
 ENVIRONMENT="dev"
-AWS_REGION="us-east-1"
+AWS_REGION="ap-southeast-1"
 
 # Function to print colored output
 print_status() {

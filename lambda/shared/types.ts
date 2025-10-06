@@ -52,6 +52,18 @@ export interface UserPreferences {
   spice_level?: 'mild' | 'medium' | 'hot';
 }
 
+export type PrivacyLevel = 'public' | 'friends' | 'private';
+
+export interface PrivacySettings {
+  profile_visibility: PrivacyLevel;
+  email_visibility: PrivacyLevel;
+  date_of_birth_visibility: PrivacyLevel;
+  cooking_history_visibility: PrivacyLevel;
+  preferences_visibility: PrivacyLevel;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface MasterIngredient {
   ingredient_id: string;
   name: string;
@@ -228,4 +240,70 @@ export interface DynamoDBItem {
   GSI2PK?: string;
   GSI2SK?: string;
   [key: string]: any;
+}
+
+// Friendship types
+export type FriendshipStatus = 'pending' | 'accepted' | 'rejected' | 'blocked';
+
+export interface Friendship {
+  friendship_id: string;
+  requester_id: string;
+  addressee_id: string;
+  status: FriendshipStatus;
+  requested_at: string;
+  responded_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FriendRequest {
+  addressee_id: string;
+  message?: string;
+}
+
+export interface FriendProfile {
+  user_id: string;
+  username: string;
+  full_name?: string;
+  avatar_url?: string;
+  friendship_status: FriendshipStatus;
+  requested_at: string;
+  responded_at?: string;
+}
+
+// Notification types
+export type NotificationType = 
+  | 'friend_request' 
+  | 'friend_accept' 
+  | 'comment' 
+  | 'reaction' 
+  | 'mention' 
+  | 'recipe_approved';
+
+export type NotificationTargetType = 'post' | 'comment' | 'recipe' | 'friendship';
+
+export interface Notification {
+  notification_id: string;
+  user_id: string;
+  type: NotificationType;
+  actor_id: string;
+  actor_username?: string;
+  actor_avatar_url?: string;
+  target_type: NotificationTargetType;
+  target_id: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+  ttl?: number; // Unix timestamp for auto-deletion (30 days)
+}
+
+export interface NotificationResponse {
+  notifications: Notification[];
+  unread_count: number;
+  total_count: number;
+  has_more: boolean;
+}
+
+export interface MarkAsReadRequest {
+  notification_id: string;
 }

@@ -77,3 +77,6 @@ pids/
 # Temporary files
 tmp/
 temp/
+
+# Assets (uploaded to S3)
+assets/

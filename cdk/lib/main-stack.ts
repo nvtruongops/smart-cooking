@@ -7,6 +7,7 @@ import { ApiStack } from './api-stack';
 import { LambdaStack } from './lambda-stack';
 import { FrontendStack } from './frontend-stack';
 import { MonitoringStack } from './monitoring-stack';
+import { StorageStack } from './storage-stack';
 
 export interface MainStackProps extends cdk.StackProps {
   environment: string;
@@ -41,6 +42,11 @@ export class MainStack extends cdk.Stack {
       domainName: config.domainName
     });
 
+    // 2.5. Storage Stack - S3 Bucket for images with CloudFront CDN
+    const storageStack = new StorageStack(this, 'Storage', {
+      environment
+    });
+
     // Create SNS topic first for admin notifications
     const adminTopic = new cdk.aws_sns.Topic(this, 'AdminAlarmTopic', {
       topicName: `smart-cooking-alerts-${environment}`,
@@ -59,7 +65,8 @@ export class MainStack extends cdk.Stack {
       userPool: authStack.userPool,
       userPoolClient: authStack.userPoolClient,
       logRetentionDays: config.logRetentionDays,
-      adminTopicArn: adminTopic.topicArn
+      adminTopicArn: adminTopic.topicArn,
+      imagesBucket: storageStack.imagesBucket
     });
 
     // 4. API Stack - API Gateway with Lambda integrations
@@ -80,14 +87,14 @@ export class MainStack extends cdk.Stack {
       userPoolClientId: authStack.userPoolClient.userPoolClientId
     });
 
-    // 6. Monitoring Stack - CloudWatch, X-Ray, Budgets
-    const monitoringStack = new MonitoringStack(this, 'Monitoring', {
-      environment,
-      budgetLimit: config.budgetLimit,
-      apiGateway: apiStack.api,
-      lambdaFunctions: Object.values(lambdaStack.functions),
-      distribution: frontendStack.distribution
-    });
+    // 6. Monitoring Stack - CloudWatch, X-Ray, Budgets (Optional - commented out to avoid circular dependencies)
+    // const monitoringStack = new MonitoringStack(this, 'Monitoring', {
+    //   environment,
+    //   budgetLimit: config.budgetLimit,
+    //   apiGateway: apiStack.api,
+    //   lambdaFunctions: Object.values(lambdaStack.functions),
+    //   distribution: frontendStack.distribution
+    // });
 
     // Stack outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
@@ -113,6 +120,11 @@ export class MainStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'DynamoDBTableName', {
       value: databaseStack.table.tableName,
       description: 'DynamoDB Table Name'
+    });
+
+    new cdk.CfnOutput(this, 'ImagesBucketName', {
+      value: storageStack.imagesBucket.bucketName,
+      description: 'S3 Bucket for images'
     });
   }
 }

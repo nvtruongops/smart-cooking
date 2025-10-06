@@ -232,10 +232,14 @@ Total Time: ~3s
 ## ⚠️ Important Notes
 
 1. **Recipe Images**: Recipe image upload removed from MVP. Images will be uploaded via social posts in Phase 2
-2. **Default Avatar**: Must exist at `s3://bucket/default/avatar.png` before deployment
-3. **S3 Permissions**: Lambda needs PutObject and CopyObject permissions
-4. **Environment Variables**: `S3_BUCKET_NAME`, `AWS_REGION` must be set
-5. **Tests**: All avatar tests passing (17/17)
+2. ✅ **S3 Bucket AUTO-CREATED**: CDK now creates bucket automatically - see `S3-STORAGE-STACK-IMPLEMENTATION.md`
+3. ✅ **Default Avatar AUTO-UPLOADED**: CDK deploys `assets/default/avatar.png` to S3 automatically
+4. ✅ **S3 Permissions AUTO-GRANTED**: Lambda functions get S3 permissions automatically via CDK
+5. ✅ **Environment Variables AUTO-SET**: `S3_BUCKET_NAME` set automatically by CDK
+6. **CloudFront CDN**: Images served via CloudFront for fast delivery
+7. **Tests**: All avatar tests passing (17/17)
+
+**📋 See Also:** `docs/S3-STORAGE-STACK-IMPLEMENTATION.md` for complete storage infrastructure details
 
 ## 🔧 Files Modified
 

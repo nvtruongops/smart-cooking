@@ -32,6 +32,12 @@
       "*.ts",
       "!*.test.ts",
       "!*.d.ts"
-    ]
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!uuid)"
+    ],
+    "moduleNameMapper": {
+      "^uuid$": "uuid"
+    }
   }
 }

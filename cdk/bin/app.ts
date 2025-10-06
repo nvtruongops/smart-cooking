@@ -15,9 +15,10 @@ const isProd = environment === 'prod';
 const config = {
   dev: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
-    domainName: '', // No custom domain for dev - uses CloudFront domain
-    certificateArn: '', // Not needed for dev
+    region: process.env.CDK_DEFAULT_REGION || 'ap-southeast-1',
+    domainName: process.env.DOMAIN_NAME || '', // e.g., 'dev.smartcooking.com'
+    certificateArn: process.env.CERTIFICATE_ARN || '',
+    createHostedZone: process.env.CREATE_HOSTED_ZONE === 'true',
     enablePointInTimeRecovery: false,
     enableWaf: false,
     logRetentionDays: logs.RetentionDays.ONE_WEEK,
@@ -25,9 +26,10 @@ const config = {
   },
   prod: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
-    domainName: process.env.DOMAIN_NAME || '', // Set via environment variable or leave empty for CloudFront domain
-    certificateArn: process.env.CERTIFICATE_ARN || '', // Optional: use existing certificate
+    region: process.env.CDK_DEFAULT_REGION || 'ap-southeast-1',
+    domainName: process.env.DOMAIN_NAME || 'smartcooking.com', // Default production domain
+    certificateArn: process.env.CERTIFICATE_ARN || '',
+    createHostedZone: process.env.CREATE_HOSTED_ZONE === 'true',
     enablePointInTimeRecovery: true,
     enableWaf: true,
     logRetentionDays: logs.RetentionDays.ONE_MONTH,

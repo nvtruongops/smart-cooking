@@ -17,7 +17,7 @@ process.env.DYNAMODB_TABLE = 'test-smart-cooking-data';
 process.env.USER_POOL_ID = 'test-user-pool-id';
 process.env.USER_POOL_CLIENT_ID = 'test-client-id';
 process.env.S3_BUCKET = 'test-smart-cooking-images';
-process.env.BEDROCK_REGION = 'us-east-1';
+process.env.BEDROCK_REGION = 'ap-southeast-1';
 
 // Global test timeout
 jest.setTimeout(30000);

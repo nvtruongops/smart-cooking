@@ -48,9 +48,15 @@ export class FrontendStack extends Construct {
       }]
     });
 
-    // CloudFront Origin Access Control (using S3OriginAccessControl)
-    const originAccessControl = new cloudfront.S3OriginAccessControl(this, 'OriginAccessControl', {
-      description: `OAC for Smart Cooking ${environment}`
+    // CloudFront Origin Access Control (OAC)
+    const oac = new cloudfront.CfnOriginAccessControl(this, 'OriginAccessControl', {
+      originAccessControlConfig: {
+        name: `smart-cooking-oac-${environment}`,
+        description: `OAC for Smart Cooking ${environment}`,
+        originAccessControlOriginType: 's3',
+        signingBehavior: 'always',
+        signingProtocol: 'sigv4'
+      }
     });
 
     // CloudFront Cache Policies
@@ -104,9 +110,7 @@ export class FrontendStack extends Construct {
       
       // Default behavior for HTML files
       defaultBehavior: {
-        origin: new origins.S3Origin(this.websiteBucket, {
-          originAccessControlId: originAccessControl.originAccessControlId
-        }),
+        origin: new origins.S3Origin(this.websiteBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: htmlCachePolicy,
         compress: true,
@@ -117,25 +121,19 @@ export class FrontendStack extends Construct {
       // Additional behaviors for static assets
       additionalBehaviors: {
         '/static/*': {
-          origin: new origins.S3Origin(this.websiteBucket, {
-            originAccessControlId: originAccessControl.originAccessControlId
-          }),
+          origin: new origins.S3Origin(this.websiteBucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: staticAssetsCachePolicy,
           compress: true
         },
         '/_next/static/*': {
-          origin: new origins.S3Origin(this.websiteBucket, {
-            originAccessControlId: originAccessControl.originAccessControlId
-          }),
+          origin: new origins.S3Origin(this.websiteBucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: staticAssetsCachePolicy,
           compress: true
         },
         '/images/*': {
-          origin: new origins.S3Origin(this.websiteBucket, {
-            originAccessControlId: originAccessControl.originAccessControlId
-          }),
+          origin: new origins.S3Origin(this.websiteBucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: staticAssetsCachePolicy,
           compress: true
@@ -241,22 +239,8 @@ export class FrontendStack extends Construct {
       ? `https://${domainName}`
       : `https://${this.distribution.distributionDomainName}`;
 
-    // Create environment configuration file for frontend
-    const envConfig = {
-      NEXT_PUBLIC_API_URL: apiGatewayUrl,
-      NEXT_PUBLIC_USER_POOL_ID: userPoolId,
-      NEXT_PUBLIC_USER_POOL_CLIENT_ID: userPoolClientId,
-      NEXT_PUBLIC_ENVIRONMENT: environment,
-      NEXT_PUBLIC_REGION: cdk.Stack.of(this).region
-    };
-
-    // Deploy environment config (this will be created during deployment)
-    new s3deploy.BucketDeployment(this, 'DeployEnvConfig', {
-      sources: [s3deploy.Source.jsonData('env-config.json', envConfig)],
-      destinationBucket: this.websiteBucket,
-      distribution: this.distribution,
-      distributionPaths: ['/env-config.json']
-    });
+    // Note: Environment configuration should be injected at build time
+    // or fetched from a separate configuration service to avoid circular dependencies
 
     // Outputs
     new cdk.CfnOutput(this, 'WebsiteBucketName', {

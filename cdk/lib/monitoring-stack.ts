@@ -4,424 +4,93 @@ import * as cloudwatchActions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as budgets from 'aws-cdk-lib/aws-budgets';
-import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Construct } from 'constructs';
 
-export interface MonitoringStackProps {
+export interface MonitoringStackProps extends cdk.StackProps {
   environment: string;
-  budgetLimit: number;
-  apiGateway: apigateway.RestApi;
+  table: dynamodb.Table;
+  api: apigateway.RestApi;
   lambdaFunctions: lambda.Function[];
-  distribution: cloudfront.Distribution;
+  alertEmail?: string;
 }
 
-export class MonitoringStack extends Construct {
-  public readonly alarmTopic: sns.Topic;
-  public readonly dashboard: cloudwatch.Dashboard;
+export class MonitoringStack extends cdk.Stack {
+  public readonly alertTopic: sns.Topic;
+  public readonly costAlertTopic: sns.Topic;
+  private dashboard: cloudwatch.Dashboard;
 
   constructor(scope: Construct, id: string, props: MonitoringStackProps) {
-    super(scope, id);
+    super(scope, id, props);
 
-    const { environment, budgetLimit, apiGateway, lambdaFunctions, distribution } = props;
+    const { environment, table, api, lambdaFunctions, alertEmail } = props;
 
-    // SNS Topic for alerts
-    this.alarmTopic = new sns.Topic(this, 'AlarmTopic', {
+    // 1. SNS Topics for Notifications
+    this.alertTopic = new sns.Topic(this, 'AlertTopic', {
       topicName: `smart-cooking-alerts-${environment}`,
-      displayName: `Smart Cooking ${environment} Alerts`
+      displayName: `Smart Cooking ${environment} - Critical Alerts`
     });
 
-    // Email subscription (replace with actual email)
-    this.alarmTopic.addSubscription(
-      new subscriptions.EmailSubscription('admin@smartcooking.com') // Replace with actual email
-    );
-
-    // CloudWatch Dashboard
-    this.dashboard = new cloudwatch.Dashboard(this, 'Dashboard', {
-      dashboardName: `SmartCooking-${environment}`,
-      defaultInterval: cdk.Duration.hours(1)
+    this.costAlertTopic = new sns.Topic(this, 'CostAlertTopic', {
+      topicName: `smart-cooking-cost-alerts-${environment}`,
+      displayName: `Smart Cooking ${environment} - Cost Alerts`
     });
 
-    // API Gateway Metrics
-    const apiErrorRate = new cloudwatch.Metric({
-      namespace: 'AWS/ApiGateway',
-      metricName: '5XXError',
-      dimensionsMap: {
-        ApiName: apiGateway.restApiName
-      },
-      statistic: 'Sum',
-      period: cdk.Duration.minutes(5)
+    // Add email subscription if provided
+    if (alertEmail) {
+      this.alertTopic.addSubscription(
+        new subscriptions.EmailSubscription(alertEmail)
+      );
+      this.costAlertTopic.addSubscription(
+        new subscriptions.EmailSubscription(alertEmail)
+      );
+    }
+
+    // 2. Cost Monitoring and Budget Alerts
+    this.createBudgetAlerts(environment);
+
+    // 3. Log Retention Policies
+    this.configureLogRetention(lambdaFunctions, environment);
+
+    // 4. CloudWatch Alarms
+    this.createCloudWatchAlarms(table, api, lambdaFunctions, environment);
+
+    // 5. Performance Dashboard
+    this.createPerformanceDashboard(table, api, lambdaFunctions, environment);
+
+    // Outputs
+    new cdk.CfnOutput(this, 'AlertTopicArn', {
+      value: this.alertTopic.topicArn,
+      description: 'SNS Topic ARN for critical alerts',
+      exportName: `SmartCooking-${environment}-AlertTopicArn`
     });
 
-    const apiLatency = new cloudwatch.Metric({
-      namespace: 'AWS/ApiGateway',
-      metricName: 'Latency',
-      dimensionsMap: {
-        ApiName: apiGateway.restApiName
-      },
-      statistic: 'Average',
-      period: cdk.Duration.minutes(5)
+    new cdk.CfnOutput(this, 'CostAlertTopicArn', {
+      value: this.costAlertTopic.topicArn,
+      description: 'SNS Topic ARN for cost alerts',
+      exportName: `SmartCooking-${environment}-CostAlertTopicArn`
     });
 
-    const apiRequestCount = new cloudwatch.Metric({
-      namespace: 'AWS/ApiGateway',
-      metricName: 'Count',
-      dimensionsMap: {
-        ApiName: apiGateway.restApiName
-      },
-      statistic: 'Sum',
-      period: cdk.Duration.minutes(5)
+    new cdk.CfnOutput(this, 'DashboardUrl', {
+      value: `https://${this.region}.console.aws.amazon.com/cloudwatch/home?region=${this.region}#dashboards:name=${this.dashboard.dashboardName}`,
+      description: 'CloudWatch Dashboard URL',
+      exportName: `SmartCooking-${environment}-DashboardUrl`
     });
+  }
 
-    // Lambda Metrics
-    const lambdaErrors = lambdaFunctions.map(func => 
-      new cloudwatch.Metric({
-        namespace: 'AWS/Lambda',
-        metricName: 'Errors',
-        dimensionsMap: {
-          FunctionName: func.functionName
-        },
-        statistic: 'Sum',
-        period: cdk.Duration.minutes(5)
-      })
-    );
+  private createBudgetAlerts(environment: string) {
+    // Development environment budget: $140 warning, $170 critical
+    // Production environment budget: $450 warning, $500 critical
+    const budgetLimit = environment === 'prod' ? 500 : 200;
+    const warningThreshold = environment === 'prod' ? 450 : 140;
+    const criticalThreshold = environment === 'prod' ? 500 : 170;
 
-    const lambdaDuration = lambdaFunctions.map(func => 
-      new cloudwatch.Metric({
-        namespace: 'AWS/Lambda',
-        metricName: 'Duration',
-        dimensionsMap: {
-          FunctionName: func.functionName
-        },
-        statistic: 'Average',
-        period: cdk.Duration.minutes(5)
-      })
-    );
-
-    // CloudFront Metrics
-    const cloudFrontErrorRate = new cloudwatch.Metric({
-      namespace: 'AWS/CloudFront',
-      metricName: '4xxErrorRate',
-      dimensionsMap: {
-        DistributionId: distribution.distributionId
-      },
-      statistic: 'Average',
-      period: cdk.Duration.minutes(5)
-    });
-
-    // Custom AI Metrics (will be published by Lambda functions)
-    const aiGenerationCount = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'RecipesFromAi',
-      statistic: 'Sum',
-      period: cdk.Duration.hours(1)
-    });
-
-    const dbRecipeCount = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'RecipesFromDatabase',
-      statistic: 'Sum',
-      period: cdk.Duration.hours(1)
-    });
-
-    const aiCostMetric = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'AiCost',
-      statistic: 'Sum',
-      period: cdk.Duration.hours(1)
-    });
-
-    const aiTokensMetric = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'AiInputTokens',
-      statistic: 'Sum',
-      period: cdk.Duration.hours(1)
-    });
-
-    const dbCoverageMetric = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'DatabaseCoveragePercent',
-      statistic: 'Average',
-      period: cdk.Duration.hours(1)
-    });
-
-    // Alarms
-
-    // 1. API Gateway Error Rate Alarm
-    const apiErrorAlarm = new cloudwatch.Alarm(this, 'ApiErrorAlarm', {
-      alarmName: `SmartCooking-${environment}-API-Errors`,
-      alarmDescription: 'API Gateway 5xx error rate is too high',
-      metric: apiErrorRate,
-      threshold: 10,
-      evaluationPeriods: 2,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-    apiErrorAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 2. API Gateway Latency Alarm
-    const apiLatencyAlarm = new cloudwatch.Alarm(this, 'ApiLatencyAlarm', {
-      alarmName: `SmartCooking-${environment}-API-Latency`,
-      alarmDescription: 'API Gateway latency is too high',
-      metric: apiLatency,
-      threshold: 5000, // 5 seconds
-      evaluationPeriods: 3,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
-    });
-    apiLatencyAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 3. Lambda Error Alarms
-    lambdaFunctions.forEach((func, index) => {
-      const errorAlarm = new cloudwatch.Alarm(this, `LambdaErrorAlarm${index}`, {
-        alarmName: `SmartCooking-${environment}-Lambda-${func.functionName}-Errors`,
-        alarmDescription: `Lambda function ${func.functionName} error rate is too high`,
-        metric: lambdaErrors[index],
-        threshold: 5,
-        evaluationPeriods: 2,
-        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-      });
-      errorAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-      // Duration alarm for AI function
-      if (func.functionName.includes('ai-suggestion')) {
-        const durationAlarm = new cloudwatch.Alarm(this, `AIDurationAlarm`, {
-          alarmName: `SmartCooking-${environment}-AI-Duration`,
-          alarmDescription: 'AI suggestion function duration is too high',
-          metric: lambdaDuration[index],
-          threshold: 45000, // 45 seconds
-          evaluationPeriods: 2,
-          comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
-        });
-        durationAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-      }
-    });
-
-    // 4. CloudFront Error Rate Alarm
-    const cfErrorAlarm = new cloudwatch.Alarm(this, 'CloudFrontErrorAlarm', {
-      alarmName: `SmartCooking-${environment}-CloudFront-Errors`,
-      alarmDescription: 'CloudFront 4xx error rate is too high',
-      metric: cloudFrontErrorRate,
-      threshold: 10, // 10%
-      evaluationPeriods: 3,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
-    });
-    cfErrorAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 5. AI Cost Alarm (Hourly)
-    const aiCostAlarm = new cloudwatch.Alarm(this, 'AiCostAlarm', {
-      alarmName: `SmartCooking-${environment}-AI-Cost-High`,
-      alarmDescription: 'AI generation cost exceeding threshold',
-      metric: aiCostMetric,
-      threshold: 10, // $10 per hour
-      evaluationPeriods: 1,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-    aiCostAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 5b. Daily AI Cost Alarm
-    const dailyAiCostMetric = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'AiCost',
-      statistic: 'Sum',
-      period: cdk.Duration.hours(24)
-    });
-
-    const dailyAiCostAlarm = new cloudwatch.Alarm(this, 'DailyAiCostAlarm', {
-      alarmName: `SmartCooking-${environment}-AI-Cost-Daily`,
-      alarmDescription: 'Daily AI generation cost exceeding threshold',
-      metric: dailyAiCostMetric,
-      threshold: 50, // $50 per day
-      evaluationPeriods: 1,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-    dailyAiCostAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 6. Low Database Coverage Alarm
-    const lowCoverageAlarm = new cloudwatch.Alarm(this, 'LowCoverageAlarm', {
-      alarmName: `SmartCooking-${environment}-Low-DB-Coverage`,
-      alarmDescription: 'Database recipe coverage is too low',
-      metric: dbCoverageMetric,
-      threshold: 30, // 30%
-      evaluationPeriods: 2,
-      comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-    lowCoverageAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 7. High Error Rate Alarm (Custom Metrics)
-    const customErrorMetric = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'ApiError',
-      statistic: 'Sum',
-      period: cdk.Duration.minutes(5)
-    });
-
-    const customErrorAlarm = new cloudwatch.Alarm(this, 'CustomErrorAlarm', {
-      alarmName: `SmartCooking-${environment}-Custom-Errors`,
-      alarmDescription: 'High error rate in custom metrics',
-      metric: customErrorMetric,
-      threshold: 5,
-      evaluationPeriods: 2,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-    customErrorAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 8. Ingredient Validation Rate Alarm
-    const validationRateMetric = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'IngredientValidationRate',
-      statistic: 'Average',
-      period: cdk.Duration.hours(1)
-    });
-
-    const lowValidationRateAlarm = new cloudwatch.Alarm(this, 'LowValidationRateAlarm', {
-      alarmName: `SmartCooking-${environment}-Low-Validation-Rate`,
-      alarmDescription: 'Ingredient validation rate is too low',
-      metric: validationRateMetric,
-      threshold: 70, // 70%
-      evaluationPeriods: 2,
-      comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-    lowValidationRateAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // 9. Security Events Alarm
-    const securityEventMetric = new cloudwatch.Metric({
-      namespace: 'SmartCooking',
-      metricName: 'SecurityEvent',
-      statistic: 'Sum',
-      period: cdk.Duration.minutes(15)
-    });
-
-    const securityEventAlarm = new cloudwatch.Alarm(this, 'SecurityEventAlarm', {
-      alarmName: `SmartCooking-${environment}-Security-Events`,
-      alarmDescription: 'Security events detected',
-      metric: securityEventMetric,
-      threshold: 1,
-      evaluationPeriods: 1,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-    securityEventAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alarmTopic));
-
-    // Dashboard Widgets
-    this.dashboard.addWidgets(
-      // API Gateway Row
-      new cloudwatch.GraphWidget({
-        title: 'API Gateway Metrics',
-        left: [apiRequestCount, apiErrorRate],
-        right: [apiLatency],
-        width: 24,
-        height: 6
-      }),
-
-      // Lambda Functions Row
-      new cloudwatch.GraphWidget({
-        title: 'Lambda Errors',
-        left: lambdaErrors,
-        width: 12,
-        height: 6
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'Lambda Duration',
-        left: lambdaDuration,
-        width: 12,
-        height: 6
-      }),
-
-      // AI Metrics Row
-      new cloudwatch.GraphWidget({
-        title: 'AI vs Database Recipe Generation',
-        left: [aiGenerationCount, dbRecipeCount],
-        width: 12,
-        height: 6
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'Database Coverage %',
-        left: [dbCoverageMetric],
-        width: 12,
-        height: 6
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'AI Generation Cost (USD/hour)',
-        left: [aiCostMetric],
-        width: 12,
-        height: 6
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'AI Token Usage',
-        left: [aiTokensMetric],
-        width: 12,
-        height: 6
-      }),
-
-      // CloudFront Row
-      new cloudwatch.GraphWidget({
-        title: 'CloudFront Error Rate',
-        left: [cloudFrontErrorRate],
-        width: 24,
-        height: 6
-      }),
-
-      // Business Metrics Row
-      new cloudwatch.GraphWidget({
-        title: 'Ingredient Validation Metrics',
-        left: [
-          new cloudwatch.Metric({
-            namespace: 'SmartCooking',
-            metricName: 'ValidIngredients',
-            statistic: 'Sum',
-            period: cdk.Duration.hours(1)
-          }),
-          new cloudwatch.Metric({
-            namespace: 'SmartCooking',
-            metricName: 'InvalidIngredients',
-            statistic: 'Sum',
-            period: cdk.Duration.hours(1)
-          })
-        ],
-        right: [validationRateMetric],
-        width: 12,
-        height: 6
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'User Activity',
-        left: [
-          new cloudwatch.Metric({
-            namespace: 'SmartCooking',
-            metricName: 'UserActivity',
-            statistic: 'Sum',
-            period: cdk.Duration.hours(1)
-          })
-        ],
-        width: 12,
-        height: 6
-      }),
-
-      // Security and Performance Row
-      new cloudwatch.GraphWidget({
-        title: 'Security Events',
-        left: [securityEventMetric],
-        width: 12,
-        height: 6
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'Custom Error Rate',
-        left: [customErrorMetric],
-        width: 12,
-        height: 6
-      })
-    );
-
-    // Budget Alert
-    const budget = new budgets.CfnBudget(this, 'Budget', {
+    new budgets.CfnBudget(this, 'MonthlyBudget', {
       budget: {
-        budgetName: `smart-cooking-budget-${environment}`,
+        budgetName: `smart-cooking-${environment}-monthly-budget`,
         budgetLimit: {
           amount: budgetLimit,
           unit: 'USD'
@@ -430,7 +99,7 @@ export class MonitoringStack extends Construct {
         budgetType: 'COST',
         costFilters: {
           TagKey: ['Project'],
-          TagValue: ['SmartCooking']
+          TagValue: [`smart-cooking-${environment}`]
         }
       },
       notificationsWithSubscribers: [
@@ -438,13 +107,27 @@ export class MonitoringStack extends Construct {
           notification: {
             notificationType: 'ACTUAL',
             comparisonOperator: 'GREATER_THAN',
-            threshold: 80, // 80% of budget
+            threshold: (warningThreshold / budgetLimit) * 100, // Convert to percentage
             thresholdType: 'PERCENTAGE'
           },
           subscribers: [
             {
-              subscriptionType: 'EMAIL',
-              address: 'admin@smartcooking.com' // Replace with actual email
+              subscriptionType: 'SNS',
+              address: this.costAlertTopic.topicArn
+            }
+          ]
+        },
+        {
+          notification: {
+            notificationType: 'ACTUAL',
+            comparisonOperator: 'GREATER_THAN',
+            threshold: (criticalThreshold / budgetLimit) * 100, // Convert to percentage
+            thresholdType: 'PERCENTAGE'
+          },
+          subscribers: [
+            {
+              subscriptionType: 'SNS',
+              address: this.costAlertTopic.topicArn
             }
           ]
         },
@@ -457,29 +140,384 @@ export class MonitoringStack extends Construct {
           },
           subscribers: [
             {
-              subscriptionType: 'EMAIL',
-              address: 'admin@smartcooking.com' // Replace with actual email
+              subscriptionType: 'SNS',
+              address: this.costAlertTopic.topicArn
             }
           ]
         }
       ]
     });
+  }
 
-    // Outputs
-    new cdk.CfnOutput(this, 'DashboardUrl', {
-      value: `https://${cdk.Stack.of(this).region}.console.aws.amazon.com/cloudwatch/home?region=${cdk.Stack.of(this).region}#dashboards:name=${this.dashboard.dashboardName}`,
-      description: 'CloudWatch Dashboard URL',
-      exportName: `SmartCooking-${environment}-DashboardUrl`
+  private configureLogRetention(lambdaFunctions: lambda.Function[], environment: string) {
+    // Set log retention based on environment
+    // Production: 30 days, Development: 7 days
+    const retentionDays = environment === 'prod' 
+      ? logs.RetentionDays.ONE_MONTH 
+      : logs.RetentionDays.ONE_WEEK;
+
+    lambdaFunctions.forEach((func, index) => {
+      new logs.LogGroup(this, `LogGroup${index}`, {
+        logGroupName: `/aws/lambda/${func.functionName}`,
+        retention: retentionDays,
+        removalPolicy: cdk.RemovalPolicy.DESTROY
+      });
     });
 
-    new cdk.CfnOutput(this, 'AlarmTopicArn', {
-      value: this.alarmTopic.topicArn,
-      description: 'SNS Topic ARN for Alarms',
-      exportName: `SmartCooking-${environment}-AlarmTopicArn`
+    // API Gateway logs
+    new logs.LogGroup(this, 'ApiGatewayLogGroup', {
+      logGroupName: `/aws/apigateway/smart-cooking-${environment}`,
+      retention: retentionDays,
+      removalPolicy: cdk.RemovalPolicy.DESTROY
+    });
+  }
+
+  private createCloudWatchAlarms(
+    table: dynamodb.Table,
+    api: apigateway.RestApi,
+    lambdaFunctions: lambda.Function[],
+    environment: string
+  ) {
+    // Lambda Error Rate Alarms
+    lambdaFunctions.forEach((func, index) => {
+      // Error rate > 1%
+      const errorAlarm = new cloudwatch.Alarm(this, `LambdaErrorAlarm${index}`, {
+        alarmName: `${func.functionName}-error-rate`,
+        alarmDescription: `Error rate > 1% for ${func.functionName}`,
+        metric: func.metricErrors({
+          period: cdk.Duration.minutes(5)
+        }),
+        threshold: 1,
+        evaluationPeriods: 2,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+      });
+      errorAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alertTopic));
+
+      // Duration > 5 seconds (except AI function which has 60s timeout)
+      const durationThreshold = func.functionName?.includes('ai-suggestion') ? 50000 : 5000;
+      const durationAlarm = new cloudwatch.Alarm(this, `LambdaDurationAlarm${index}`, {
+        alarmName: `${func.functionName}-duration`,
+        alarmDescription: `Duration > ${durationThreshold}ms for ${func.functionName}`,
+        metric: func.metricDuration({
+          period: cdk.Duration.minutes(5),
+          statistic: cloudwatch.Statistic.AVERAGE
+        }),
+        threshold: durationThreshold,
+        evaluationPeriods: 3,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+      });
+      durationAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alertTopic));
+
+      // Throttles
+      const throttleAlarm = new cloudwatch.Alarm(this, `LambdaThrottleAlarm${index}`, {
+        alarmName: `${func.functionName}-throttles`,
+        alarmDescription: `Throttles detected for ${func.functionName}`,
+        metric: func.metricThrottles({
+          period: cdk.Duration.minutes(5)
+        }),
+        threshold: 1,
+        evaluationPeriods: 1,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+      });
+      throttleAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alertTopic));
     });
 
-    // Tags
-    cdk.Tags.of(this.alarmTopic).add('Component', 'Monitoring');
-    cdk.Tags.of(this.dashboard).add('Component', 'Monitoring');
+    // API Gateway Alarms
+    // 5xx errors > 10 requests in 5 minutes
+    const api5xxAlarm = new cloudwatch.Alarm(this, 'Api5xxAlarm', {
+      alarmName: `${api.restApiName}-5xx-errors`,
+      alarmDescription: '5xx errors > 10 requests in 5 minutes',
+      metric: api.metricServerError({
+        period: cdk.Duration.minutes(5),
+        statistic: cloudwatch.Statistic.SUM
+      }),
+      threshold: 10,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+    });
+    api5xxAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alertTopic));
+
+    // API Gateway latency > 5 seconds (p95)
+    const apiLatencyAlarm = new cloudwatch.Alarm(this, 'ApiLatencyAlarm', {
+      alarmName: `${api.restApiName}-latency`,
+      alarmDescription: 'API latency > 5 seconds (p95)',
+      metric: api.metricLatency({
+        period: cdk.Duration.minutes(5),
+        statistic: 'p95'
+      }),
+      threshold: 5000,
+      evaluationPeriods: 3,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+    });
+    apiLatencyAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alertTopic));
+
+    // DynamoDB Alarms
+    // Throttled requests
+    const dynamoThrottleAlarm = new cloudwatch.Alarm(this, 'DynamoThrottleAlarm', {
+      alarmName: `${table.tableName}-throttles`,
+      alarmDescription: 'DynamoDB throttled requests detected',
+      metric: table.metricThrottledRequestsForOperations({
+        operations: [dynamodb.Operation.PUT_ITEM, dynamodb.Operation.GET_ITEM, dynamodb.Operation.QUERY],
+        period: cdk.Duration.minutes(5),
+        statistic: cloudwatch.Statistic.SUM
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+    });
+    dynamoThrottleAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alertTopic));
+
+    // Custom AI Generation Metrics Alarms
+    const aiTimeoutAlarm = new cloudwatch.Alarm(this, 'AITimeoutAlarm', {
+      alarmName: `smart-cooking-${environment}-ai-timeout-rate`,
+      alarmDescription: 'AI generation timeout rate > 10%',
+      metric: new cloudwatch.Metric({
+        namespace: 'SmartCooking/AI',
+        metricName: 'TimeoutRate',
+        dimensionsMap: {
+          Environment: environment
+        },
+        period: cdk.Duration.minutes(15),
+        statistic: cloudwatch.Statistic.AVERAGE
+      }),
+      threshold: 10, // 10%
+      evaluationPeriods: 2,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+    });
+    aiTimeoutAlarm.addAlarmAction(new cloudwatchActions.SnsAction(this.alertTopic));
+  }
+
+  private createPerformanceDashboard(
+    table: dynamodb.Table,
+    api: apigateway.RestApi,
+    lambdaFunctions: lambda.Function[],
+    environment: string
+  ) {
+    this.dashboard = new cloudwatch.Dashboard(this, 'PerformanceDashboard', {
+      dashboardName: `smart-cooking-${environment}-performance`,
+      widgets: [
+        // Row 1: API Gateway Metrics
+        [
+          new cloudwatch.GraphWidget({
+            title: 'API Gateway - Request Count',
+            left: [
+              api.metricCount({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM
+              })
+            ],
+            width: 12,
+            height: 6
+          }),
+          new cloudwatch.GraphWidget({
+            title: 'API Gateway - Latency (p95)',
+            left: [
+              api.metricLatency({
+                period: cdk.Duration.minutes(5),
+                statistic: 'p95'
+              })
+            ],
+            width: 12,
+            height: 6
+          })
+        ],
+
+        // Row 2: API Gateway Errors
+        [
+          new cloudwatch.GraphWidget({
+            title: 'API Gateway - Error Rates',
+            left: [
+              api.metricClientError({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM,
+                label: '4xx Errors'
+              }),
+              api.metricServerError({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM,
+                label: '5xx Errors'
+              })
+            ],
+            width: 24,
+            height: 6
+          })
+        ],
+
+        // Row 3: Lambda Performance
+        [
+          new cloudwatch.GraphWidget({
+            title: 'Lambda - Duration (Average)',
+            left: lambdaFunctions.map(func => 
+              func.metricDuration({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.AVERAGE,
+                label: func.functionName?.split('-').pop() || 'unknown'
+              })
+            ),
+            width: 12,
+            height: 6
+          }),
+          new cloudwatch.GraphWidget({
+            title: 'Lambda - Invocations',
+            left: lambdaFunctions.map(func => 
+              func.metricInvocations({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM,
+                label: func.functionName?.split('-').pop() || 'unknown'
+              })
+            ),
+            width: 12,
+            height: 6
+          })
+        ],
+
+        // Row 4: Lambda Errors and Throttles
+        [
+          new cloudwatch.GraphWidget({
+            title: 'Lambda - Errors',
+            left: lambdaFunctions.map(func => 
+              func.metricErrors({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM,
+                label: func.functionName?.split('-').pop() || 'unknown'
+              })
+            ),
+            width: 12,
+            height: 6
+          }),
+          new cloudwatch.GraphWidget({
+            title: 'Lambda - Throttles',
+            left: lambdaFunctions.map(func => 
+              func.metricThrottles({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM,
+                label: func.functionName?.split('-').pop() || 'unknown'
+              })
+            ),
+            width: 12,
+            height: 6
+          })
+        ],
+
+        // Row 5: DynamoDB Metrics
+        [
+          new cloudwatch.GraphWidget({
+            title: 'DynamoDB - Read/Write Capacity',
+            left: [
+              table.metricConsumedReadCapacityUnits({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM,
+                label: 'Read Capacity'
+              }),
+              table.metricConsumedWriteCapacityUnits({
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM,
+                label: 'Write Capacity'
+              })
+            ],
+            width: 12,
+            height: 6
+          }),
+          new cloudwatch.GraphWidget({
+            title: 'DynamoDB - Throttles',
+            left: [
+              table.metricThrottledRequestsForOperations({
+                operations: [dynamodb.Operation.PUT_ITEM, dynamodb.Operation.GET_ITEM, dynamodb.Operation.QUERY],
+                period: cdk.Duration.minutes(5),
+                statistic: cloudwatch.Statistic.SUM
+              })
+            ],
+            width: 12,
+            height: 6
+          })
+        ],
+
+        // Row 6: AI Generation Metrics
+        [
+          new cloudwatch.GraphWidget({
+            title: 'AI Generation - DB vs AI Mix',
+            left: [
+              new cloudwatch.Metric({
+                namespace: 'SmartCooking/AI',
+                metricName: 'RecipesFromDB',
+                dimensionsMap: { Environment: environment },
+                period: cdk.Duration.minutes(15),
+                statistic: cloudwatch.Statistic.SUM,
+                label: 'DB Recipes'
+              }),
+              new cloudwatch.Metric({
+                namespace: 'SmartCooking/AI',
+                metricName: 'RecipesFromAI',
+                dimensionsMap: { Environment: environment },
+                period: cdk.Duration.minutes(15),
+                statistic: cloudwatch.Statistic.SUM,
+                label: 'AI Recipes'
+              })
+            ],
+            width: 12,
+            height: 6
+          }),
+          new cloudwatch.GraphWidget({
+            title: 'AI Generation - Performance',
+            left: [
+              new cloudwatch.Metric({
+                namespace: 'SmartCooking/AI',
+                metricName: 'GenerationTime',
+                dimensionsMap: { Environment: environment },
+                period: cdk.Duration.minutes(15),
+                statistic: cloudwatch.Statistic.AVERAGE,
+                label: 'Avg Generation Time (ms)'
+              }),
+              new cloudwatch.Metric({
+                namespace: 'SmartCooking/AI',
+                metricName: 'TimeoutRate',
+                dimensionsMap: { Environment: environment },
+                period: cdk.Duration.minutes(15),
+                statistic: cloudwatch.Statistic.AVERAGE,
+                label: 'Timeout Rate (%)'
+              })
+            ],
+            width: 12,
+            height: 6
+          })
+        ],
+
+        // Row 7: Cost Tracking
+        [
+          new cloudwatch.SingleValueWidget({
+            title: 'Monthly Cost Estimate',
+            metrics: [
+              new cloudwatch.Metric({
+                namespace: 'AWS/Billing',
+                metricName: 'EstimatedCharges',
+                dimensionsMap: {
+                  Currency: 'USD'
+                },
+                period: cdk.Duration.hours(6),
+                statistic: cloudwatch.Statistic.MAXIMUM
+              })
+            ],
+            width: 8,
+            height: 6
+          }),
+          new cloudwatch.GraphWidget({
+            title: 'Daily Cost Trend',
+            left: [
+              new cloudwatch.Metric({
+                namespace: 'AWS/Billing',
+                metricName: 'EstimatedCharges',
+                dimensionsMap: {
+                  Currency: 'USD'
+                },
+                period: cdk.Duration.hours(24),
+                statistic: cloudwatch.Statistic.MAXIMUM
+              })
+            ],
+            width: 16,
+            height: 6
+          })
+        ]
+      ]
+    });
   }
 }

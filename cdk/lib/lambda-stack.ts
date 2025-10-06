@@ -4,6 +4,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
 export interface LambdaStackProps {
@@ -13,6 +14,7 @@ export interface LambdaStackProps {
   userPoolClient: cognito.UserPoolClient;
   logRetentionDays: number;
   adminTopicArn?: string;
+  imagesBucket?: s3.IBucket;
 }
 
 export class LambdaStack extends Construct {
@@ -21,11 +23,11 @@ export class LambdaStack extends Construct {
   constructor(scope: Construct, id: string, props: LambdaStackProps) {
     super(scope, id);
 
-    const { environment, table, userPool, userPoolClient, logRetentionDays, adminTopicArn } = props;
+    const { environment, table, userPool, userPoolClient, logRetentionDays, adminTopicArn, imagesBucket } = props;
 
     // Common Lambda configuration
     const commonProps = {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
       environment: {
@@ -33,10 +35,18 @@ export class LambdaStack extends Construct {
         USER_POOL_ID: userPool.userPoolId,
         USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
         ENVIRONMENT: environment,
-        LOG_LEVEL: environment === 'prod' ? 'INFO' : 'DEBUG'
+        LOG_LEVEL: environment === 'prod' ? 'INFO' : 'DEBUG',
+        ...(imagesBucket && { S3_BUCKET_NAME: imagesBucket.bucketName })
       },
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      // logRetention: logs.RetentionDays.ONE_WEEK, // Disabled to avoid circular dependencies
       tracing: lambda.Tracing.ACTIVE // Enable X-Ray tracing
+      // Bundling disabled - using manual copy of shared folder
+      // bundling: {
+      //   externalModules: ['@aws-sdk/*'],
+      //   nodeModules: ['uuid'],
+      //   minify: environment === 'prod',
+      //   sourceMap: environment !== 'prod'
+      // }
     };
 
     // Initialize functions object
@@ -47,7 +57,7 @@ export class LambdaStack extends Construct {
       ...commonProps,
       functionName: `smart-cooking-auth-handler-${environment}`,
       description: 'Handles post-authentication user profile creation',
-      code: lambda.Code.fromAsset('lambda/auth-handler'),
+      code: lambda.Code.fromAsset('../lambda/auth-handler'),
       handler: 'index.handler',
       timeout: cdk.Duration.seconds(10)
     });
@@ -57,7 +67,7 @@ export class LambdaStack extends Construct {
       ...commonProps,
       functionName: `smart-cooking-user-profile-${environment}`,
       description: 'Handles user profile CRUD operations',
-      code: lambda.Code.fromAsset('lambda/user-profile'),
+      code: lambda.Code.fromAsset('../lambda/user-profile'),
       handler: 'index.handler'
     });
 
@@ -66,7 +76,7 @@ export class LambdaStack extends Construct {
       ...commonProps,
       functionName: `smart-cooking-ingredient-validator-${environment}`,
       description: 'Validates ingredients against master database with fuzzy matching',
-      code: lambda.Code.fromAsset('lambda/ingredient-validator'),
+      code: lambda.Code.fromAsset('../lambda/ingredient-validator'),
       handler: 'index.handler',
       environment: {
         ...commonProps.environment,
@@ -79,13 +89,13 @@ export class LambdaStack extends Construct {
       ...commonProps,
       functionName: `smart-cooking-ai-suggestion-${environment}`,
       description: 'Generates recipe suggestions using flexible DB/AI mix',
-      code: lambda.Code.fromAsset('lambda/ai-suggestion'),
+      code: lambda.Code.fromAsset('../lambda/ai-suggestion'),
       handler: 'index.handler',
       memorySize: 1024,
       timeout: cdk.Duration.seconds(60),
       environment: {
         ...commonProps.environment,
-        BEDROCK_REGION: 'us-east-1',
+        BEDROCK_REGION: process.env.BEDROCK_REGION || 'us-east-1',
         BEDROCK_MODEL_ID: 'anthropic.claude-3-haiku-20240307-v1:0'
       }
     });
@@ -95,7 +105,7 @@ export class LambdaStack extends Construct {
       ...commonProps,
       functionName: `smart-cooking-cooking-history-${environment}`,
       description: 'Manages cooking sessions and history tracking',
-      code: lambda.Code.fromAsset('lambda/cooking-history'),
+      code: lambda.Code.fromAsset('../lambda/cooking-session'),
       handler: 'index.handler'
     });
 
@@ -104,7 +114,7 @@ export class LambdaStack extends Construct {
       ...commonProps,
       functionName: `smart-cooking-rating-handler-${environment}`,
       description: 'Handles recipe ratings and auto-approval system',
-      code: lambda.Code.fromAsset('lambda/rating-handler'),
+      code: lambda.Code.fromAsset('../lambda/rating'),
       handler: 'index.handler'
     });
 
@@ -113,15 +123,42 @@ export class LambdaStack extends Construct {
       ...commonProps,
       functionName: `smart-cooking-recipe-crud-${environment}`,
       description: 'Handles recipe CRUD operations and search',
-      code: lambda.Code.fromAsset('lambda/recipe-crud'),
+      code: lambda.Code.fromAsset('../lambda/recipe'),
       handler: 'index.handler',
       memorySize: 512,
       timeout: cdk.Duration.seconds(30)
     });
 
+    // 8. Friends Handler Lambda
+    this.functions.friendsHandler = new lambda.Function(this, 'FriendsHandler', {
+      ...commonProps,
+      functionName: `smart-cooking-friends-handler-${environment}`,
+      description: 'Manages friendship requests and social connections',
+      code: lambda.Code.fromAsset('../lambda/friends'),
+      handler: 'index.handler'
+    });
+
     // Grant DynamoDB permissions to all Lambda functions
     Object.values(this.functions).forEach(func => {
       table.grantReadWriteData(func);
+      
+      // Grant S3 permissions for avatar and image uploads
+      if (imagesBucket) {
+        imagesBucket.grantReadWrite(func);
+        
+        // Grant additional S3 permissions
+        func.addToRolePolicy(new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            's3:PutObject',
+            's3:GetObject',
+            's3:DeleteObject',
+            's3:PutObjectAcl',
+            's3:CopyObject'
+          ],
+          resources: [`${imagesBucket.bucketArn}/*`]
+        }));
+      }
       
       // Grant additional permissions for specific functions
       if (func === this.functions.aiSuggestion) {
@@ -133,7 +170,7 @@ export class LambdaStack extends Construct {
             'bedrock:InvokeModelWithResponseStream'
           ],
           resources: [
-            `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`
+            `arn:aws:bedrock:${process.env.BEDROCK_REGION || 'us-east-1'}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`
           ]
         }));
       }

@@ -11,6 +11,10 @@ import { logger } from '../shared/logger';
 import { metrics } from '../shared/metrics';
 import { tracer } from '../shared/tracer';
 import {
+    createPrivacyContext,
+    filterCookingHistory
+} from '../shared/privacy-middleware';
+import {
     StartCookingRequest,
     CompleteCookingRequest,
     UpdateCookingStatusRequest,
@@ -56,6 +60,11 @@ export async function handler(event: APIGatewayEvent): Promise<APIResponse> {
 
         if (method === 'GET' && path.includes('/cooking/history')) {
             return await getCookingHistory(userId, event.queryStringParameters);
+        }
+
+        if (method === 'GET' && path.match(/\/users\/.+\/cooking-history$/)) {
+            const targetUserId = event.pathParameters?.userId || '';
+            return await getUserCookingHistory(targetUserId, userId, event.queryStringParameters);
         }
 
         if (method === 'GET' && path.includes('/cooking/stats')) {
@@ -143,9 +152,11 @@ async function updateCookingStatus(userId: string, body: string | null): Promise
 /**
  * Get cooking history with filtering and sorting
  */
-async function getCookingHistory(userId: string, queryParams: any): Promise<APIResponse> {
+async function getCookingHistory(viewerId: string, queryParams: any): Promise<APIResponse> {
+    const targetUserId = queryParams?.userId || viewerId;
+
     const request: GetCookingHistoryRequest = {
-        user_id: userId,
+        user_id: targetUserId,
         limit: queryParams?.limit ? parseInt(queryParams.limit) : undefined,
         start_key: queryParams?.start_key,
         status_filter: queryParams?.status_filter,
@@ -153,8 +164,61 @@ async function getCookingHistory(userId: string, queryParams: any): Promise<APIR
         sort_order: queryParams?.sort_order
     };
 
-    const response = await CookingSessionService.getCookingHistory(userId, request);
-    return successResponse(response);
+    const response = await CookingSessionService.getCookingHistory(targetUserId, request);
+
+    // Apply privacy filtering
+    const privacyContext = await createPrivacyContext(viewerId, targetUserId);
+    const filteredHistory = await filterCookingHistory(response.sessions, privacyContext);
+
+    logStructured('INFO', 'Cooking history retrieved with privacy filtering', {
+        viewerId,
+        targetUserId,
+        isSelf: privacyContext.isSelf,
+        isFriend: privacyContext.isFriend,
+        historyCount: filteredHistory.length
+    });
+
+    return successResponse({
+        sessions: filteredHistory,
+        last_evaluated_key: response.last_evaluated_key
+    });
+}
+
+/**
+ * Get another user's cooking history with privacy filtering
+ * Task 17.1 - Display cooking history on user's social profile
+ */
+async function getUserCookingHistory(
+    targetUserId: string,
+    viewerId: string,
+    queryParams: any
+): Promise<APIResponse> {
+    const request: GetCookingHistoryRequest = {
+        user_id: targetUserId,
+        limit: queryParams?.limit ? parseInt(queryParams.limit) : 10,
+        start_key: queryParams?.start_key,
+        status_filter: 'completed', // Only show completed sessions on profile
+        sort_order: 'desc'
+    };
+
+    const response = await CookingSessionService.getCookingHistory(targetUserId, request);
+
+    // Apply privacy filtering
+    const privacyContext = await createPrivacyContext(viewerId, targetUserId);
+    const filteredHistory = await filterCookingHistory(response.sessions, privacyContext);
+
+    logStructured('INFO', 'User cooking history retrieved with privacy filtering', {
+        viewerId,
+        targetUserId,
+        isSelf: privacyContext.isSelf,
+        isFriend: privacyContext.isFriend,
+        historyCount: filteredHistory.length
+    });
+
+    return successResponse({
+        history: filteredHistory,
+        last_evaluated_key: response.last_evaluated_key
+    });
 }
 
 /**

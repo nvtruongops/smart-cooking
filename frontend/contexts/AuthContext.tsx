@@ -7,6 +7,7 @@ import { CognitoUserSession } from 'amazon-cognito-identity-js';
 interface AuthContextType {
   user: UserAttributes | null;
   session: CognitoUserSession | null;
+  token: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
@@ -54,9 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  // Get token from session
+  const token = session?.getIdToken().getJwtToken() || null;
+
   const value = {
     user,
     session,
+    token,
     loading,
     signIn,
     signUp,

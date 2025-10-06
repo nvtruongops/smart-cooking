@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import StarRating from '@/components/StarRating';
+import ShareCookingSession from '@/components/cooking/ShareCookingSession';
 import { CookingHistoryWithRecipe } from '@/types/cooking';
 import { getStatusLabel, getStatusColor, formatDate } from '@/types/cooking';
 import { formatTime, getTotalTime } from '@/types/recipe';
@@ -354,6 +355,21 @@ function HistoryPageContent() {
                               </svg>
                               Tiếp tục nấu
                             </button>
+                          </div>
+                        )}
+
+                        {/* Share Button for Completed Sessions - Task 17.3 */}
+                        {item.status === 'completed' && item.recipe && (
+                          <div className="mt-4 pt-4 border-t">
+                            <ShareCookingSession
+                              sessionId={item.history_id}
+                              recipeId={item.recipe.recipe_id}
+                              recipeTitle={item.recipe.title}
+                              rating={item.personal_rating}
+                              notes={item.personal_notes}
+                              imageUrl={item.recipe.image_url}
+                              autoSuggest={item.personal_rating ? item.personal_rating >= 4 : false}
+                            />
                           </div>
                         )}
                       </div>

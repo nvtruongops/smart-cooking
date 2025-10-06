@@ -626,4 +626,133 @@ export class RecipeService {
 
     return sorted;
   }
+
+  /**
+   * Get post count for a recipe
+   * Task 17.2 - Display post count on recipe pages
+   */
+  static async getRecipePostCount(recipeId: string): Promise<number> {
+    try {
+      // Query all posts and filter by recipe_id
+      const result = await DynamoDBHelper.query({
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
+        FilterExpression: 'recipe_id = :recipeId',
+        ExpressionAttributeValues: {
+          ':pk': 'POST#',
+          ':recipeId': recipeId,
+        },
+      });
+
+      return result.Items?.length || 0;
+    } catch (error) {
+      logStructured('ERROR', 'Failed to get recipe post count', {
+        recipeId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * Get friends who have cooked this recipe
+   * Task 17.2 - Show friends who have cooked this recipe
+   */
+  static async getFriendsWhoCooked(
+    userId: string,
+    recipeId: string
+  ): Promise<Array<{
+    user_id: string;
+    username: string;
+    name?: string;
+    avatar_url?: string;
+    cooked_at: string;
+    rating?: number;
+  }>> {
+    try {
+      // Get user's friends list
+      const friendsResult = await DynamoDBHelper.query({
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        FilterExpression: '#status = :status',
+        ExpressionAttributeNames: {
+          '#status': 'status',
+        },
+        ExpressionAttributeValues: {
+          ':pk': `USER#${userId}`,
+          ':sk': 'FRIEND#',
+          ':status': 'accepted',
+        },
+      });
+
+      const friendIds = (friendsResult.Items || []).map((item: any) => item.friend_id);
+
+      if (friendIds.length === 0) {
+        return [];
+      }
+
+      // Query cooking history for each friend who cooked this recipe
+      const friendsCookedPromises = friendIds.map(async (friendId: string) => {
+        const historyResult = await DynamoDBHelper.query({
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+          FilterExpression: 'recipe_id = :recipeId AND #status = :status',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+          },
+          ExpressionAttributeValues: {
+            ':pk': `USER#${friendId}`,
+            ':sk': 'COOKING#',
+            ':recipeId': recipeId,
+            ':status': 'completed',
+          },
+          Limit: 1, // Only need to know if they cooked it
+        });
+
+        if (historyResult.Items && historyResult.Items.length > 0) {
+          const cookingSession = historyResult.Items[0];
+
+          // Get friend's profile
+          const profileResult = await DynamoDBHelper.get(`USER#${friendId}`, 'PROFILE');
+
+          if (profileResult) {
+            return {
+              user_id: friendId,
+              username: profileResult.username || 'Unknown',
+              name: profileResult.full_name,
+              avatar_url: profileResult.avatar_url,
+              cooked_at: cookingSession.cook_date || cookingSession.created_at,
+              rating: cookingSession.personal_rating,
+            };
+          }
+        }
+
+        return null;
+      });
+
+      const friendsCooked = await Promise.all(friendsCookedPromises);
+
+      // Filter out nulls and sort by most recent
+      const validFriends = friendsCooked
+        .filter((friend): friend is NonNullable<typeof friend> => friend !== null)
+        .sort((a, b) => {
+          const dateA = new Date(a.cooked_at).getTime();
+          const dateB = new Date(b.cooked_at).getTime();
+          return dateB - dateA;
+        });
+
+      logStructured('INFO', 'Friends who cooked recipe retrieved', {
+        userId,
+        recipeId,
+        friendsCount: validFriends.length,
+      });
+
+      return validFriends;
+    } catch (error) {
+      logStructured('ERROR', 'Failed to get friends who cooked recipe', {
+        userId,
+        recipeId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return [];
+    }
+  }
 }

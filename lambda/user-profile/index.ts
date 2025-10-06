@@ -1,4 +1,4 @@
-import { APIGatewayEvent, APIResponse, UserProfile, UserPreferences } from '../shared/types';
+import { APIGatewayEvent, APIResponse, UserProfile, UserPreferences, PrivacySettings, PrivacyLevel } from '../shared/types';
 import { successResponse, errorResponse, handleError, AppError } from '../shared/responses';
 import { DynamoDBHelper } from '../shared/dynamodb';
 import { AvatarService } from '../shared/avatar-service';
@@ -14,6 +14,12 @@ import {
 import { logger } from '../shared/logger';
 import { metrics } from '../shared/metrics';
 import { tracer } from '../shared/tracer';
+import {
+  createPrivacyContext,
+  filterUserProfile,
+  filterCookingHistory,
+  filterUserPreferences
+} from '../shared/privacy-middleware';
 
 export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
   const startTime = Date.now();
@@ -39,16 +45,24 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
     switch (httpMethod) {
       case 'GET':
         if (pathParameters?.type === 'preferences') {
-          return await getPreferences(userId);
+          const targetUserId = event.queryStringParameters?.userId || userId;
+          return await getPreferences(userId, targetUserId);
         }
-        return await getProfile(userId);
-      
+        if (pathParameters?.type === 'privacy') {
+          return await getPrivacySettings(userId);
+        }
+        const profileTargetUserId = event.queryStringParameters?.userId || userId;
+        return await getProfile(userId, profileTargetUserId);
+
       case 'PUT':
         if (pathParameters?.type === 'preferences') {
           return await updatePreferences(userId, event.body);
         }
+        if (pathParameters?.type === 'privacy') {
+          return await updatePrivacySettings(userId, event.body);
+        }
         return await updateProfile(userId, event.body);
-      
+
       case 'POST':
         if (pathParameters?.type === 'preferences') {
           return await createPreferences(userId, event.body);
@@ -57,7 +71,7 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
           return await uploadAvatar(userId, event.body);
         }
         return await createProfile(userId, event.body);
-      
+
       default:
         throw new AppError(405, 'method_not_allowed', 'Method not allowed');
     }
@@ -76,10 +90,10 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
   }
 };
 
-async function getProfile(userId: string): Promise<APIResponse> {
+async function getProfile(viewerId: string, targetUserId: string): Promise<APIResponse> {
   try {
-    const profile = await DynamoDBHelper.getUserProfile(userId);
-    
+    const profile = await DynamoDBHelper.getUserProfile(targetUserId);
+
     if (!profile) {
       throw new AppError(404, 'profile_not_found', 'User profile not found');
     }
@@ -87,12 +101,23 @@ async function getProfile(userId: string): Promise<APIResponse> {
     // Remove DynamoDB keys from response
     const { PK, SK, GSI1PK, GSI1SK, entity_type, ...cleanProfile } = profile;
 
+    // Apply privacy filtering
+    const privacyContext = await createPrivacyContext(viewerId, targetUserId);
+    const filteredProfile = await filterUserProfile(cleanProfile, privacyContext);
+
+    logStructured('INFO', 'Profile retrieved with privacy filtering', {
+      viewerId,
+      targetUserId,
+      isSelf: privacyContext.isSelf,
+      isFriend: privacyContext.isFriend
+    });
+
     return successResponse({
-      profile: cleanProfile
+      profile: filteredProfile
     });
 
   } catch (error: any) {
-    logStructured('ERROR', 'Get profile failed', { error: error.message, userId });
+    logStructured('ERROR', 'Get profile failed', { error: error.message, viewerId, targetUserId });
     throw error;
   }
 }
@@ -275,35 +300,48 @@ async function createProfile(userId: string, body: string | null): Promise<APIRe
   }
 }
 
-async function getPreferences(userId: string): Promise<APIResponse> {
+async function getPreferences(viewerId: string, targetUserId: string): Promise<APIResponse> {
   try {
-    const preferences = await DynamoDBHelper.getUserPreferences(userId);
-    
-    if (!preferences) {
-      // Return default preferences if none exist
-      const defaultPreferences: UserPreferences = {
-        dietary_restrictions: [],
-        allergies: [],
-        favorite_cuisines: [],
-        preferred_cooking_methods: []
-      };
+    const preferences = await DynamoDBHelper.getUserPreferences(targetUserId);
 
-      return successResponse({
-        preferences: defaultPreferences,
-        isDefault: true
-      });
+    // Default preferences
+    const defaultPreferences: UserPreferences = {
+      dietary_restrictions: [],
+      allergies: [],
+      favorite_cuisines: [],
+      preferred_cooking_methods: []
+    };
+
+    const cleanPreferences = preferences
+      ? (() => {
+          const { PK, SK, GSI1PK, GSI1SK, entity_type, ...clean } = preferences;
+          return clean;
+        })()
+      : defaultPreferences;
+
+    // Apply privacy filtering
+    const privacyContext = await createPrivacyContext(viewerId, targetUserId);
+    const filteredPreferences = await filterUserPreferences(cleanPreferences, privacyContext);
+
+    logStructured('INFO', 'Preferences retrieved with privacy filtering', {
+      viewerId,
+      targetUserId,
+      isSelf: privacyContext.isSelf,
+      isFriend: privacyContext.isFriend,
+      hasAccess: filteredPreferences !== null
+    });
+
+    if (filteredPreferences === null) {
+      throw new AppError(403, 'access_denied', 'You do not have permission to view these preferences');
     }
 
-    // Remove DynamoDB keys from response
-    const { PK, SK, GSI1PK, GSI1SK, entity_type, ...cleanPreferences } = preferences;
-
     return successResponse({
-      preferences: cleanPreferences,
-      isDefault: false
+      preferences: filteredPreferences,
+      isDefault: !preferences
     });
 
   } catch (error: any) {
-    logStructured('ERROR', 'Get preferences failed', { error: error.message, userId });
+    logStructured('ERROR', 'Get preferences failed', { error: error.message, viewerId, targetUserId });
     throw error;
   }
 }
@@ -533,6 +571,171 @@ async function uploadAvatar(userId: string, body: string | null): Promise<APIRes
 
   } catch (error: any) {
     logStructured('ERROR', 'Upload avatar failed', { error: error.message, userId });
+    throw error;
+  }
+}
+
+/**
+ * Get privacy settings
+ * GET /user/privacy
+ */
+async function getPrivacySettings(userId: string): Promise<APIResponse> {
+  try {
+    const privacy = await DynamoDBHelper.get(`USER#${userId}`, 'PRIVACY');
+
+    if (!privacy) {
+      // Return default privacy settings if none exist
+      const defaultPrivacy: PrivacySettings = {
+        profile_visibility: 'public',
+        email_visibility: 'private',
+        date_of_birth_visibility: 'private',
+        cooking_history_visibility: 'public',
+        preferences_visibility: 'friends'
+      };
+
+      return successResponse({
+        privacy: defaultPrivacy,
+        isDefault: true
+      });
+    }
+
+    // Extract privacy settings from DynamoDB item
+    const privacySettings: PrivacySettings = {
+      profile_visibility: privacy.profile_visibility,
+      email_visibility: privacy.email_visibility,
+      date_of_birth_visibility: privacy.date_of_birth_visibility,
+      cooking_history_visibility: privacy.cooking_history_visibility,
+      preferences_visibility: privacy.preferences_visibility
+    };
+
+    return successResponse({
+      privacy: privacySettings,
+      isDefault: false
+    });
+
+  } catch (error: any) {
+    logStructured('ERROR', 'Get privacy settings failed', { error: error.message, userId });
+    throw error;
+  }
+}
+
+/**
+ * Update privacy settings
+ * PUT /user/privacy
+ */
+async function updatePrivacySettings(userId: string, body: string | null): Promise<APIResponse> {
+  if (!body) {
+    throw new AppError(400, 'missing_body', 'Request body is required');
+  }
+
+  const data = parseJSON(body);
+  const validPrivacyLevels: PrivacyLevel[] = ['public', 'friends', 'private'];
+  const validFields = [
+    'profile_visibility',
+    'email_visibility',
+    'date_of_birth_visibility',
+    'cooking_history_visibility',
+    'preferences_visibility'
+  ];
+
+  const updates: Partial<PrivacySettings> = {};
+
+  // Validate and prepare updates
+  for (const field of validFields) {
+    if (data[field] !== undefined) {
+      if (!validPrivacyLevels.includes(data[field])) {
+        throw new AppError(400, 'invalid_privacy_level', `${field} must be one of: public, friends, private`);
+      }
+      updates[field as keyof PrivacySettings] = data[field];
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new AppError(400, 'no_updates', 'No valid fields to update');
+  }
+
+  try {
+    // Check if privacy settings exist
+    const existingPrivacy = await DynamoDBHelper.get(`USER#${userId}`, 'PRIVACY');
+
+    if (!existingPrivacy) {
+      // Create new privacy settings with defaults + updates
+      const newPrivacy: PrivacySettings = {
+        profile_visibility: updates.profile_visibility || 'public',
+        email_visibility: updates.email_visibility || 'private',
+        date_of_birth_visibility: updates.date_of_birth_visibility || 'private',
+        cooking_history_visibility: updates.cooking_history_visibility || 'public',
+        preferences_visibility: updates.preferences_visibility || 'friends'
+      };
+
+      await DynamoDBHelper.put({
+        PK: `USER#${userId}`,
+        SK: 'PRIVACY',
+        entity_type: 'USER_PRIVACY',
+        ...newPrivacy,
+        created_at: formatTimestamp(),
+        updated_at: formatTimestamp()
+      });
+
+      logStructured('INFO', 'Privacy settings created', { userId, settings: updates });
+
+      return successResponse({
+        message: 'Privacy settings created successfully',
+        privacy: newPrivacy
+      }, 201);
+    }
+
+    // Update existing privacy settings
+    const updateExpressions: string[] = [];
+    const expressionAttributeValues: any = {};
+    const expressionAttributeNames: any = {};
+
+    Object.entries(updates).forEach(([key, value], index) => {
+      const attrName = `#attr${index}`;
+      const attrValue = `:val${index}`;
+
+      updateExpressions.push(`${attrName} = ${attrValue}`);
+      expressionAttributeNames[attrName] = key;
+      expressionAttributeValues[attrValue] = value;
+    });
+
+    // Add updated_at timestamp
+    updateExpressions.push('#updatedAt = :updatedAt');
+    expressionAttributeNames['#updatedAt'] = 'updated_at';
+    expressionAttributeValues[':updatedAt'] = formatTimestamp();
+
+    const updateExpression = `SET ${updateExpressions.join(', ')}`;
+
+    const updatedPrivacy = await DynamoDBHelper.update(
+      `USER#${userId}`,
+      'PRIVACY',
+      updateExpression,
+      expressionAttributeValues,
+      expressionAttributeNames
+    );
+
+    if (!updatedPrivacy) {
+      throw new AppError(500, 'update_failed', 'Failed to update privacy settings');
+    }
+
+    // Extract privacy settings from DynamoDB item
+    const privacySettings: PrivacySettings = {
+      profile_visibility: updatedPrivacy.profile_visibility,
+      email_visibility: updatedPrivacy.email_visibility,
+      date_of_birth_visibility: updatedPrivacy.date_of_birth_visibility,
+      cooking_history_visibility: updatedPrivacy.cooking_history_visibility,
+      preferences_visibility: updatedPrivacy.preferences_visibility
+    };
+
+    logStructured('INFO', 'Privacy settings updated successfully', { userId, updatedFields: Object.keys(updates) });
+
+    return successResponse({
+      message: 'Privacy settings updated successfully',
+      privacy: privacySettings
+    });
+
+  } catch (error: any) {
+    logStructured('ERROR', 'Update privacy settings failed', { error: error.message, userId });
     throw error;
   }
 }

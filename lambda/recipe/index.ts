@@ -58,6 +58,12 @@ export async function handler(event: APIGatewayEvent): Promise<APIResponse> {
       return await searchRecipes(event.queryStringParameters);
     }
 
+    // GET /recipes/{id}/friends-cooked - Get friends who cooked this recipe
+    if (method === 'GET' && path.match(/\/recipes\/.+\/friends-cooked$/)) {
+      const recipeId = event.pathParameters?.id || '';
+      return await getFriendsWhoCooked(userId, recipeId);
+    }
+
     return errorResponse(404, 'not_found', 'Endpoint not found');
 
   } catch (error) {
@@ -106,7 +112,15 @@ async function getRecipe(userId: string, recipeId: string): Promise<APIResponse>
 
   const recipe = await RecipeService.getRecipeById(recipeId, userId);
 
-  return successResponse({ recipe });
+  // Get post count for this recipe (Task 17.2)
+  const postCount = await RecipeService.getRecipePostCount(recipeId);
+
+  return successResponse({ 
+    recipe: {
+      ...recipe,
+      post_count: postCount
+    }
+  });
 }
 
 /**
@@ -186,4 +200,21 @@ async function searchRecipes(queryParams: any): Promise<APIResponse> {
   const response = await RecipeService.searchRecipes(request);
 
   return successResponse(response);
+}
+
+/**
+ * Get friends who have cooked this recipe
+ * Task 17.2 - Show friends who have cooked this recipe
+ */
+async function getFriendsWhoCooked(userId: string, recipeId: string): Promise<APIResponse> {
+  if (!recipeId) {
+    throw new AppError(400, 'missing_recipe_id', 'Recipe ID is required');
+  }
+
+  const friends = await RecipeService.getFriendsWhoCooked(userId, recipeId);
+
+  return successResponse({
+    friends,
+    count: friends.length
+  });
 }

@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Default values
 ENVIRONMENT="dev"
-AWS_REGION="us-east-1"
+AWS_REGION="ap-southeast-1"
 SKIP_BUILD=false
 SKIP_TESTS=false
 DRY_RUN=false

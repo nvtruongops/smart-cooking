@@ -1,0 +1,54 @@
+{
+  "name": "smart-cooking-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end integration tests for Smart Cooking MVP",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:dev": "TEST_ENV=dev jest",
+    "test:prod": "TEST_ENV=prod jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:user-journey": "jest user-journey.test.ts",
+    "test:ai-suggestions": "jest ai-suggestions.test.ts",
+    "test:auto-approval": "jest auto-approval.test.ts",
+    "test:cost-metrics": "jest cost-metrics.test.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.0.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/util-dynamodb": "^3.0.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@types/node": "^18.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testTimeout": 120000,
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
+    "testMatch": [
+      "**/*.test.ts"
+    ],
+    "collectCoverageFrom": [
+      "**/*.ts",
+      "!**/*.d.ts",
+      "!**/node_modules/**",
+      "!**/*.config.ts"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ]
+  }
+}

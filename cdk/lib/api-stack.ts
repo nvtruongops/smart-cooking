@@ -211,6 +211,37 @@ export class ApiStack extends Construct {
       }
     });
 
+    const userPrivacySettingsModel = new apigateway.Model(this, 'UserPrivacySettingsModel', {
+      restApi: this.api,
+      modelName: 'UserPrivacySettings',
+      contentType: 'application/json',
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          profile_visibility: {
+            type: apigateway.JsonSchemaType.STRING,
+            enum: ['public', 'friends', 'private']
+          },
+          email_visibility: {
+            type: apigateway.JsonSchemaType.STRING,
+            enum: ['public', 'friends', 'private']
+          },
+          date_of_birth_visibility: {
+            type: apigateway.JsonSchemaType.STRING,
+            enum: ['public', 'friends', 'private']
+          },
+          cooking_history_visibility: {
+            type: apigateway.JsonSchemaType.STRING,
+            enum: ['public', 'friends', 'private']
+          },
+          preferences_visibility: {
+            type: apigateway.JsonSchemaType.STRING,
+            enum: ['public', 'friends', 'private']
+          }
+        }
+      }
+    });
+
     const ratingRequestModel = new apigateway.Model(this, 'RatingRequestModel', {
       restApi: this.api,
       modelName: 'RatingRequest',
@@ -325,6 +356,24 @@ export class ApiStack extends Construct {
       methodResponses: commonMethodResponses
     });
 
+    const privacyResource = userResource.addResource('privacy');
+
+    privacyResource.addMethod('GET', new apigateway.LambdaIntegration(lambdaFunctions.userProfile), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      methodResponses: commonMethodResponses
+    });
+
+    privacyResource.addMethod('PUT', new apigateway.LambdaIntegration(lambdaFunctions.userProfile), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      requestValidator,
+      requestModels: {
+        'application/json': userPrivacySettingsModel
+      },
+      methodResponses: commonMethodResponses
+    });
+
     // 2. Ingredient validation endpoints
     const ingredientsResource = this.api.root.addResource('ingredients');
     const validateResource = ingredientsResource.addResource('validate');
@@ -432,6 +481,51 @@ export class ApiStack extends Construct {
       methodResponses: commonMethodResponses
     });
 
+    // 7. Friends and social connection endpoints
+    const friendsResource = this.api.root.addResource('friends');
+
+    // POST /friends/request - Send friend request
+    const friendRequestResource = friendsResource.addResource('request');
+    friendRequestResource.addMethod('POST', new apigateway.LambdaIntegration(lambdaFunctions.friendsHandler), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      requestValidator,
+      methodResponses: commonMethodResponses
+    });
+
+    // GET /friends - Get friends list with status filtering
+    friendsResource.addMethod('GET', new apigateway.LambdaIntegration(lambdaFunctions.friendsHandler), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      methodResponses: commonMethodResponses
+    });
+
+    // PUT /friends/{friendshipId}/accept - Accept friend request
+    const friendshipIdResource = friendsResource.addResource('{friendshipId}');
+    const acceptResource = friendshipIdResource.addResource('accept');
+    acceptResource.addMethod('PUT', new apigateway.LambdaIntegration(lambdaFunctions.friendsHandler), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      requestValidator,
+      methodResponses: commonMethodResponses
+    });
+
+    // PUT /friends/{friendshipId}/reject - Reject friend request
+    const rejectResource = friendshipIdResource.addResource('reject');
+    rejectResource.addMethod('PUT', new apigateway.LambdaIntegration(lambdaFunctions.friendsHandler), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      requestValidator,
+      methodResponses: commonMethodResponses
+    });
+
+    // DELETE /friends/{friendshipId} - Remove friendship
+    friendshipIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(lambdaFunctions.friendsHandler), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      methodResponses: commonMethodResponses
+    });
+
     // Health check endpoint (no auth required)
     const healthResource = this.api.root.addResource('health');
     healthResource.addMethod('GET', new apigateway.MockIntegration({
@@ -460,76 +554,12 @@ export class ApiStack extends Construct {
     // Set API URL
     this.apiUrl = this.api.url;
 
-    // WAF Configuration (if enabled)
-    if (enableWaf) {
-      const webAcl = new wafv2.CfnWebACL(this, 'ApiWebAcl', {
-        scope: 'REGIONAL',
-        defaultAction: { allow: {} },
-        name: `smart-cooking-api-waf-${environment}`,
-        description: 'WAF for Smart Cooking API',
-        rules: [
-          {
-            name: 'AWSManagedRulesCommonRuleSet',
-            priority: 1,
-            overrideAction: { none: {} },
-            statement: {
-              managedRuleGroupStatement: {
-                vendorName: 'AWS',
-                name: 'AWSManagedRulesCommonRuleSet'
-              }
-            },
-            visibilityConfig: {
-              sampledRequestsEnabled: true,
-              cloudWatchMetricsEnabled: true,
-              metricName: 'CommonRuleSetMetric'
-            }
-          },
-          {
-            name: 'AWSManagedRulesKnownBadInputsRuleSet',
-            priority: 2,
-            overrideAction: { none: {} },
-            statement: {
-              managedRuleGroupStatement: {
-                vendorName: 'AWS',
-                name: 'AWSManagedRulesKnownBadInputsRuleSet'
-              }
-            },
-            visibilityConfig: {
-              sampledRequestsEnabled: true,
-              cloudWatchMetricsEnabled: true,
-              metricName: 'KnownBadInputsRuleSetMetric'
-            }
-          },
-          {
-            name: 'RateLimitRule',
-            priority: 3,
-            action: { block: {} },
-            statement: {
-              rateBasedStatement: {
-                limit: 2000,
-                aggregateKeyType: 'IP'
-              }
-            },
-            visibilityConfig: {
-              sampledRequestsEnabled: true,
-              cloudWatchMetricsEnabled: true,
-              metricName: 'RateLimitRuleMetric'
-            }
-          }
-        ],
-        visibilityConfig: {
-          sampledRequestsEnabled: true,
-          cloudWatchMetricsEnabled: true,
-          metricName: `SmartCookingApiWaf${environment}`
-        }
-      });
-
-      // Associate WAF with API Gateway
-      new wafv2.CfnWebACLAssociation(this, 'ApiWebAclAssociation', {
-        resourceArn: this.api.deploymentStage.stageArn,
-        webAclArn: webAcl.attrArn
-      });
-    }
+    // WAF Configuration (temporarily disabled to avoid circular dependencies)
+    // if (enableWaf) {
+    //   const webAcl = new wafv2.CfnWebACL(this, 'ApiWebAcl', {
+    //     ... WAF configuration
+    //   });
+    // }
 
     // CloudWatch Log Group for API Gateway
     new logs.LogGroup(this, 'ApiLogGroup', {
