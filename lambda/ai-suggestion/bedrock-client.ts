@@ -92,28 +92,45 @@ export class BedrockAIClient {
     // Build personalization context (privacy-aware)
     const personalizationContext = this.buildPersonalizationContext(user_context);
     
-    const prompt = `You are a Vietnamese cooking expert AI assistant. Generate ${recipe_count} authentic Vietnamese recipe(s) using the specified cooking method and ingredients.
+    // Determine cuisine based on user's country (default: Vietnamese)
+    const userCountry = user_context.country || 'Vietnam';
+    const cuisineType = userCountry === 'Vietnam' ? 'Vietnamese' : userCountry;
+    const language = userCountry === 'Vietnam' ? 'Vietnamese' : 'English';
+    
+    const prompt = `You are a ${cuisineType} cooking expert AI assistant. Generate ${recipe_count} authentic ${cuisineType} recipe(s) using the specified cooking method and ingredients.
+
+IMPORTANT - INGREDIENT MATCHING:
+The user may input ingredients WITHOUT Vietnamese diacritics or with typos. You MUST intelligently match them:
+- "ca ro" → cà rốt (carrot)
+- "hanh la" → hành lá (green onion) 
+- "ca chua" → cà chua (tomato)
+- "thit ga" → thịt gà (chicken)
+- "tom" → tôm (shrimp)
+- "ca" → cá (fish)
+Use your knowledge to identify the correct ingredient even with missing diacritics or minor spelling variations.
 
 COOKING METHOD: ${cooking_method}
-AVAILABLE INGREDIENTS: ${ingredients.join(', ')}
+AVAILABLE INGREDIENTS (may have typos or missing diacritics): ${ingredients.join(', ')}
 
 ${personalizationContext}
 
 REQUIREMENTS:
-1. Use ONLY the provided ingredients (no additional ingredients)
-2. Create authentic Vietnamese recipes using the specified cooking method: ${cooking_method}
-3. Ensure recipes are suitable for the user's dietary needs and preferences
-4. Include detailed step-by-step instructions in Vietnamese
-5. Provide cooking and prep times
-6. Specify serving size
+1. INTELLIGENTLY INTERPRET ingredient names - match "ca ro" to "cà rốt", "hanh" to "hành", etc.
+2. Use ONLY the provided ingredients (interpret them correctly, then use them)
+3. Create authentic ${cuisineType} recipes using the specified cooking method: ${cooking_method}
+4. Ensure recipes are suitable for the user's dietary needs and preferences
+5. Include detailed step-by-step instructions in ${language}
+6. Provide cooking and prep times
+7. Specify serving size
+8. In the response, use CORRECT Vietnamese spelling with proper diacritics
 
 RESPONSE FORMAT (JSON only, no additional text):
 {
   "recipes": [
     {
-      "title": "Recipe name in Vietnamese",
-      "description": "Brief description in Vietnamese",
-      "cuisine_type": "Vietnamese",
+      "title": "Recipe name in ${language} (with correct diacritics)",
+      "description": "Brief description in ${language}",
+      "cuisine_type": "${cuisineType}",
       "cooking_method": "${cooking_method}",
       "meal_type": "main|appetizer|soup|dessert",
       "prep_time_minutes": number,
@@ -121,7 +138,7 @@ RESPONSE FORMAT (JSON only, no additional text):
       "servings": number,
       "ingredients": [
         {
-          "ingredient_name": "ingredient name",
+          "ingredient_name": "correct ingredient name WITH diacritics (e.g., cà rốt not ca ro)",
           "quantity": "amount",
           "unit": "unit (optional)",
           "preparation": "preparation method (optional)",
@@ -131,7 +148,7 @@ RESPONSE FORMAT (JSON only, no additional text):
       "instructions": [
         {
           "step_number": 1,
-          "description": "Detailed instruction in Vietnamese",
+          "description": "Detailed instruction in ${language}",
           "duration": "time estimate (optional)"
         }
       ],
@@ -145,7 +162,10 @@ RESPONSE FORMAT (JSON only, no additional text):
   ]
 }
 
-Generate authentic, delicious Vietnamese recipes that match the user's preferences and dietary restrictions.`;
+REMEMBER: 
+- Interpret ingredient inputs flexibly (ca ro = cà rốt, hanh la = hành lá)
+- Output ingredients with CORRECT Vietnamese diacritics
+- Create authentic, delicious ${cuisineType} recipes that match the user's preferences and dietary restrictions.`;
 
     return prompt;
   }
