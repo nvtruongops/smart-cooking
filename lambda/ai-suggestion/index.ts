@@ -1,7 +1,7 @@
-import { APIGatewayEvent, APIResponse, AISuggestionRequest, AISuggestionResponse, UserProfile, UserPreferences } from '../shared/types';
+import { APIGatewayEvent, APIResponse, AISuggestionRequest, AISuggestionResponse, UserProfile, UserPreferences, Recipe } from '../shared/types';
 import { FlexibleMixAlgorithm } from './flexible-mix-algorithm';
 import { BedrockAIClient } from './bedrock-client';
-import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../shared/logger';
@@ -89,6 +89,23 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
           originalRequest: request
         }
       );
+
+      // ✅ NEW: Save AI-generated recipes to database for future reuse
+      // This enables cost optimization and database coverage growth (Task 11.2)
+      if (mixedRecipes.stats.from_ai > 0) {
+        const aiRecipes = mixedRecipes.recipes.filter(r => r.is_ai_generated);
+        try {
+          await saveAIRecipesToDatabase(aiRecipes, userId);
+          logger.info(`Saved ${aiRecipes.length} AI-generated recipes to database`, {
+            recipeIds: aiRecipes.map(r => r.recipe_id),
+            userId,
+            costSavingEnabled: true
+          });
+        } catch (error) {
+          // Don't fail the request if saving fails - user still gets recipes
+          logger.error('Failed to save AI recipes to database', { error, userId });
+        }
+      }
 
       // Track suggestion history for analytics and cost optimization
       const suggestionId = await trackSuggestionHistory({
@@ -429,6 +446,100 @@ async function handleAIFailureFallback(event: APIGatewayEvent): Promise<APIRespo
   } catch (fallbackError) {
     console.error('Fallback failed:', fallbackError);
     return createErrorResponse(503, 'Service temporarily unavailable');
+  }
+}
+
+/**
+ * Save AI-generated recipes to DynamoDB for future reuse
+ * Enables cost optimization by reducing AI API calls
+ * Implements auto-approval workflow (Task 5.2)
+ */
+async function saveAIRecipesToDatabase(
+  recipes: Recipe[], 
+  createdBy: string
+): Promise<void> {
+  if (!recipes || recipes.length === 0) {
+    return;
+  }
+
+  logger.info(`Saving ${recipes.length} AI-generated recipes to database`, {
+    recipeIds: recipes.map(r => r.recipe_id),
+    createdBy
+  });
+
+  const putRequests = recipes.map(recipe => ({
+    PutRequest: {
+      Item: {
+        PK: `RECIPE#${recipe.recipe_id}`,
+        SK: 'METADATA',
+        entity_type: 'recipe',
+        recipe_id: recipe.recipe_id,
+        title: recipe.title,
+        description: recipe.description || '',
+        ingredients: recipe.ingredients || [],
+        instructions: recipe.instructions || [],
+        cooking_method: recipe.cooking_method || 'unknown',
+        cuisine_type: recipe.cuisine_type || 'vietnamese',
+        meal_type: recipe.meal_type || 'lunch',
+        prep_time_minutes: recipe.prep_time_minutes || 0,
+        cook_time_minutes: recipe.cook_time_minutes || 0,
+        servings: recipe.servings || 2,
+        
+        // Approval workflow (Task 5.2)
+        is_approved: false,  // Pending approval until rated >= 4.0
+        is_public: false,    // Not public until approved
+        approval_status: 'pending',
+        is_ai_generated: true,
+        
+        // Initial stats
+        average_rating: 0,
+        rating_count: 0,
+        cook_count: 0,
+        favorite_count: 0,
+        
+        // Metadata
+        source: 'ai_generated',
+        created_by: createdBy,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        
+        // GSI indexes for search and discovery
+        GSI1PK: `METHOD#${recipe.cooking_method || 'unknown'}`,
+        GSI1SK: new Date().toISOString(),
+        GSI2PK: `CUISINE#${recipe.cuisine_type || 'vietnamese'}`,
+        GSI2SK: new Date().toISOString()
+      }
+    }
+  }));
+
+  // Batch write in chunks of 25 (DynamoDB limit)
+  try {
+    for (let i = 0; i < putRequests.length; i += 25) {
+      const chunk = putRequests.slice(i, i + 25);
+      await dynamoClient.send(new BatchWriteCommand({
+        RequestItems: {
+          [DYNAMODB_TABLE]: chunk
+        }
+      }));
+      
+      logger.info(`Saved batch ${Math.floor(i / 25) + 1} of ${Math.ceil(putRequests.length / 25)}`);
+    }
+
+    logger.info(`Successfully saved ${recipes.length} recipes to database`);
+    
+    // Track cost optimization - recipes saved means future AI cost savings
+    logger.logBusinessMetric('recipes-saved-to-database', recipes.length, 'count', {
+      source: 'ai_generated',
+      createdBy,
+      estimatedCostSavings: recipes.length * 0.02 // $0.02 per recipe saved
+    });
+  } catch (error) {
+    logger.error('Error saving recipes to database', { 
+      error, 
+      recipeCount: recipes.length,
+      createdBy 
+    });
+    throw error;
   }
 }
 

@@ -1,0 +1,16 @@
+{
+  "httpMethod": "POST",
+  "path": "/ai-suggestions",
+  "body": "{\"ingredients\":[\"ca rot\",\"hanh la\",\"rau mui\"],\"preferences\":{\"cuisine\":\"vietnamese\",\"mealType\":\"lunch\"},\"recipe_count\":3}",
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "test-user-123",
+        "email": "test@example.com"
+      }
+    }
+  },
+  "headers": {
+    "Content-Type": "application/json"
+  }
+}

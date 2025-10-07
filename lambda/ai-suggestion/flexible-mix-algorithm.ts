@@ -208,6 +208,14 @@ export class FlexibleMixAlgorithm {
         };
         
         const aiResponse = await this.aiClient.generateRecipes(aiRequest);
+        
+        // ✅ Mark AI recipes for database storage (Task 5.2 - Auto-approval workflow)
+        aiResponse.recipes.forEach(recipe => {
+          recipe.is_ai_generated = true;
+          recipe.is_approved = false;  // Pending until user rates >= 4.0
+          recipe.is_public = false;    // Not public until approved
+        });
+        
         aiRecipes.push(...aiResponse.recipes);
         
         console.log(`Generated ${aiResponse.recipes.length} AI recipe(s) for category: ${category}`);

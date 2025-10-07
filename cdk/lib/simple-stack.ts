@@ -166,7 +166,7 @@ export class SimpleStack extends cdk.Stack {
       functionName: `smart-cooking-ai-suggestion-${environment}`,
       description: 'Generates recipe suggestions using AI',
       code: lambda.Code.fromAsset('../lambda/ai-suggestion'),
-      handler: 'index.handler',
+      handler: 'dist/ai-suggestion/index.handler',
       memorySize: 768,  // Optimized from 1024MB
       timeout: cdk.Duration.seconds(60)
     });
