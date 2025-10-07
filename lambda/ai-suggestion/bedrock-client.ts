@@ -125,7 +125,10 @@ REQUIREMENTS:
 8. In the response, use CORRECT Vietnamese spelling with proper diacritics
 
 RESPONSE FORMAT (JSON only, no additional text):
+
+IF YOU CAN CREATE RECIPES WITH THESE INGREDIENTS:
 {
+  "success": true,
   "recipes": [
     {
       "title": "Recipe name in ${language} (with correct diacritics)",
@@ -162,10 +165,20 @@ RESPONSE FORMAT (JSON only, no additional text):
   ]
 }
 
+IF INGREDIENTS ARE UNCLEAR OR CANNOT CREATE RECIPES:
+{
+  "success": false,
+  "error": "INVALID_INGREDIENTS",
+  "message": "Không thể tìm thấy món ăn phù hợp với các nguyên liệu này. Vui lòng kiểm tra lại tên nguyên liệu hoặc thử với nguyên liệu khác.",
+  "suggestions": ["Gợi ý nguyên liệu 1", "Gợi ý nguyên liệu 2"]
+}
+
 REMEMBER: 
-- Interpret ingredient inputs flexibly (ca ro = cà rốt, hanh la = hành lá)
+- Interpret ingredient inputs flexibly (ca ro = cà rốt, hanh la = hành lá, rau mui = rau mùi)
 - Output ingredients with CORRECT Vietnamese diacritics
-- Create authentic, delicious ${cuisineType} recipes that match the user's preferences and dietary restrictions.`;
+- If you CANNOT identify ingredients or create a recipe, return success: false
+- Be flexible - even with typos like "ca ro" or "hanh la", try to create recipes
+- Only return error if ingredients are completely unrecognizable or incompatible`;
 
     return prompt;
   }
@@ -231,6 +244,12 @@ REMEMBER:
 
       const parsedResponse = JSON.parse(jsonMatch[0]);
       
+      // Check if AI returned error due to invalid ingredients
+      if (parsedResponse.success === false) {
+        console.warn('AI could not create recipes:', parsedResponse.message);
+        throw new Error(parsedResponse.message || 'Không thể tìm thấy món ăn phù hợp với nguyên liệu này');
+      }
+      
       if (!parsedResponse.recipes || !Array.isArray(parsedResponse.recipes)) {
         throw new Error('Invalid response format: missing recipes array');
       }
@@ -243,7 +262,12 @@ REMEMBER:
       console.error('Failed to parse AI response:', error);
       console.error('Raw AI response:', aiResponse);
       
-      // Return fallback recipe if parsing fails
+      // If error message is from AI about invalid ingredients, throw it
+      if (error instanceof Error && error.message.includes('Không thể tìm thấy')) {
+        throw error;
+      }
+      
+      // Return fallback recipe for other parsing errors
       return [this.createFallbackRecipe(request)];
     }
   }

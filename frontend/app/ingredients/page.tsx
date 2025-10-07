@@ -86,7 +86,7 @@ export default function IngredientsPage() {
                 <svg className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span>Nhập tên nguyên liệu và nhấn Enter hoặc chọn từ gợi ý tự động</span>
+                <span>Nhập tên nguyên liệu (có thể không dấu: ca ro, hanh la, rau mui...)</span>
               </li>
               <li className="flex items-start">
                 <svg className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -98,19 +98,13 @@ export default function IngredientsPage() {
                 <svg className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span>Nhấn &quot;Kiểm tra nguyên liệu&quot; để xác thực danh sách</span>
+                <span>Nhấn &quot;Tìm công thức với AI&quot; - AI sẽ tự động hiểu nguyên liệu của bạn</span>
               </li>
               <li className="flex items-start">
                 <svg className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span>Chấp nhận hoặc từ chối các đề xuất sửa lỗi (nếu có)</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span>Nhấn &quot;Tìm công thức&quot; để nhận gợi ý từ AI</span>
+                <span>AI thông minh sẽ tự động sửa lỗi chính tả và tìm món ăn phù hợp</span>
               </li>
             </ul>
           </div>
@@ -121,22 +115,25 @@ export default function IngredientsPage() {
           </div>
 
           {/* Tips section */}
-          <div className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">
-              💡 Mẹo nhỏ
+          <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-green-900 mb-3 flex items-center">
+              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              ✨ Sức mạnh AI
             </h3>
-            <div className="space-y-2 text-sm text-gray-700">
+            <div className="space-y-2 text-sm text-green-800">
               <p>
-                • Hệ thống sử dụng AI và cơ sở dữ liệu công thức có sẵn để đề xuất món ăn phù hợp
+                • <strong>Không cần gõ dấu:</strong> Nhập "ca ro, hanh la, rau mui" - AI tự hiểu là "cá rô, hành lá, rau mùi"
               </p>
               <p>
-                • Nếu nguyên liệu bạn nhập có lỗi chính tả, hệ thống sẽ tự động gợi ý sửa
+                • <strong>AI thông minh:</strong> Tự động sửa lỗi chính tả và tìm nguyên liệu tương tự
               </p>
               <p>
-                • Danh sách nguyên liệu sẽ được lưu tạm thời, bạn có thể quay lại sau
+                • <strong>Gợi ý đa dạng:</strong> Nhận nhiều công thức khác nhau từ cùng bộ nguyên liệu
               </p>
               <p>
-                • Với cùng một bộ nguyên liệu, bạn sẽ nhận được nhiều công thức khác nhau
+                • <strong>Tiết kiệm thời gian:</strong> Không cần kiểm tra, AI xử lý mọi thứ cho bạn
               </p>
             </div>
           </div>

@@ -51,6 +51,7 @@ const VIETNAMESE_INGREDIENTS: MasterIngredientData[] = [
   { name: 'Cá hồi', category: 'seafood', aliases: ['salmon', 'ca hoi'] },
   { name: 'Cá thu', category: 'seafood', aliases: ['mackerel', 'ca thu'] },
   { name: 'Cá ngừ', category: 'seafood', aliases: ['tuna', 'ca ngu'] },
+  { name: 'Cá rô', category: 'seafood', aliases: ['anabas', 'climbing perch', 'ca ro'] },
   { name: 'Cá rô phi', category: 'seafood', aliases: ['tilapia', 'ca ro phi'] },
   { name: 'Cá chép', category: 'seafood', aliases: ['carp', 'ca chep'] },
   { name: 'Cá trắm', category: 'seafood', aliases: ['grass carp', 'ca tram'] },

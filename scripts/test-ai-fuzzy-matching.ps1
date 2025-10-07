@@ -107,13 +107,13 @@ Write-Host ""
 Write-Host "AI Prompt Features:" -ForegroundColor Yellow
 Write-Host "  ✓ Accepts ingredients without diacritics" -ForegroundColor Green
 Write-Host "  ✓ Supports typos and variations" -ForegroundColor Green
-Write-Host "  ✓ Auto-corrects to proper Vietnamese" -ForegroundColor Green
-Write-Host "  ✓ Dynamic cuisine based on user country" -ForegroundColor Green
+Write-Host "  - Auto-corrects to proper Vietnamese" -ForegroundColor Green
+Write-Host "  - Dynamic cuisine based on user country" -ForegroundColor Green
 Write-Host ""
 Write-Host "Example mappings:" -ForegroundColor Yellow
-Write-Host "  ca ro      → cà rốt" -ForegroundColor Gray
-Write-Host "  hanh la    → hành lá" -ForegroundColor Gray
-Write-Host "  thit ga    → thịt gà" -ForegroundColor Gray
-Write-Host "  tom        → tôm" -ForegroundColor Gray
-Write-Host "  ca chua    → cà chua" -ForegroundColor Gray
+Write-Host "  ca ro      -> ca rot" -ForegroundColor Gray
+Write-Host "  hanh la    -> hanh la" -ForegroundColor Gray
+Write-Host "  thit ga    -> thit ga" -ForegroundColor Gray
+Write-Host "  tom        -> tom" -ForegroundColor Gray
+Write-Host "  ca chua    -> ca chua" -ForegroundColor Gray
 Write-Host ""

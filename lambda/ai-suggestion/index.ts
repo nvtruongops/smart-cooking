@@ -60,15 +60,11 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
       const userId = ErrorHandler.extractUserId(event);
       const userContext = await retrieveUserContext(userId);
       
-      // Validate ingredients using existing ingredient validator
-      const validatedIngredients = await validateIngredients(request.ingredients);
-      
-      if (validatedIngredients.valid.length === 0) {
-        throw new ValidationError('No valid ingredients provided', {
-          invalid_ingredients: validatedIngredients.invalid,
-          warnings: validatedIngredients.warnings
-        });
-      }
+      // SKIP ingredient validation - let AI handle fuzzy matching and interpretation
+      // AI is smart enough to interpret "ca ro" → "cà rốt", "hanh la" → "hành lá", etc.
+      logger.info('Skipping ingredient validation, letting AI interpret', { 
+        ingredients: request.ingredients 
+      });
 
       // Execute AI suggestion with error recovery
       const mixedRecipes = await executeWithRecovery(
@@ -76,12 +72,12 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
           return await tracer.captureBusinessOperation(
             'generate-mixed-recipes',
             () => flexibleMixAlgorithm.generateMixedRecipes({
-              ingredients: validatedIngredients.valid,
+              ingredients: request.ingredients, // Pass raw ingredients to AI
               recipe_count: request.recipe_count,
               user_context: userContext
             }),
             {
-              ingredientCount: validatedIngredients.valid.length,
+              ingredientCount: request.ingredients.length,
               requestedRecipes: request.recipe_count
             }
           );
@@ -98,7 +94,7 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
       const suggestionId = await trackSuggestionHistory({
         userId,
         request,
-        validatedIngredients,
+        ingredients: request.ingredients, // Use raw ingredients
         mixedRecipes
       });
 
@@ -106,7 +102,7 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
       const response: AISuggestionResponse = {
         suggestions: mixedRecipes.recipes,
         stats: mixedRecipes.stats,
-        warnings: validatedIngredients.warnings
+        warnings: [] // No warnings since we skip validation
       };
 
       // Log business metrics
@@ -121,7 +117,7 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
       metrics.trackRecipeSuggestion(
         mixedRecipes.stats.from_database,
         mixedRecipes.stats.from_ai,
-        validatedIngredients.valid.length
+        request.ingredients.length
       );
 
       // Track API request metrics
@@ -336,7 +332,7 @@ async function validateIngredients(ingredients: string[]): Promise<{
 async function trackSuggestionHistory(params: {
   userId: string;
   request: AISuggestionRequest;
-  validatedIngredients: { valid: string[]; invalid: string[]; warnings: any[] };
+  ingredients: string[]; // Changed from validatedIngredients to raw ingredients
   mixedRecipes: import('./flexible-mix-algorithm').FlexibleMixResponse;
 }): Promise<string> {
   const suggestionId = uuidv4();
@@ -349,12 +345,12 @@ async function trackSuggestionHistory(params: {
       suggestion_id: suggestionId,
       user_id: params.userId,
       recipe_ids: params.mixedRecipes.recipes.map(r => r.recipe_id),
-      prompt_text: `Generate ${params.request.recipe_count} recipes using: ${params.validatedIngredients.valid.join(', ')}`,
-      ingredients_used: params.validatedIngredients.valid,
+      prompt_text: `Generate ${params.request.recipe_count} recipes using: ${params.ingredients.join(', ')}`,
+      ingredients_used: params.ingredients,
       requested_recipe_count: params.request.recipe_count,
       recipes_from_db: params.mixedRecipes.stats.from_database,
       recipes_from_ai: params.mixedRecipes.stats.from_ai,
-      invalid_ingredients: params.validatedIngredients.invalid,
+      invalid_ingredients: [], // No validation, so no invalid ingredients tracked
       was_from_cache: false, // Not implementing caching in MVP
       cost_optimization: params.mixedRecipes.cost_optimization,
       created_at: new Date().toISOString(),

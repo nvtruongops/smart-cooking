@@ -222,11 +222,10 @@ export default function IngredientBatchValidator({
   };
 
   const handleSubmit = () => {
-    const validIngredients = ingredients
-      .filter(i => i.status === 'valid' || i.status === 'corrected' || i.status === 'warning')
-      .map(i => i.validated || i.name);
-
-    onValidated(validIngredients);
+    // NEW STRATEGY: Allow ALL ingredients, let AI handle interpretation
+    // No validation required - AI is smart enough to interpret "ca ro" → "cà rô", etc.
+    const allIngredients = ingredients.map(i => i.name);
+    onValidated(allIngredients);
   };
 
   const handleClear = () => {
@@ -285,7 +284,7 @@ export default function IngredientBatchValidator({
     }
   };
 
-  const validCount = ingredients.filter(i => i.status === 'valid' || i.status === 'corrected' || i.status === 'warning').length;
+  const validCount = ingredients.length; // All ingredients are now considered "valid"
   const canSubmit = validCount > 0 && validCount <= 5 && !isValidating;
 
   return (
@@ -377,61 +376,25 @@ export default function IngredientBatchValidator({
           </div>
 
           {/* Action buttons */}
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleValidate}
-                disabled={isValidating || ingredients.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {isValidating ? 'Đang kiểm tra...' : 'Kiểm tra nguyên liệu'}
-              </button>
-
-              {validationResults && (
-                <div className="text-sm text-gray-600">
-                  {validCount} / {ingredients.length} nguyên liệu hợp lệ
-                  {ingredients.length > 5 && (
-                    <span className="ml-2 text-red-600">
-                      (Tối đa 5 nguyên liệu)
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Quick validation status */}
-            <div className="flex items-center space-x-2 text-sm">
-              {ingredients.filter(i => i.status === 'valid').length > 0 && (
-                <span className="flex items-center text-green-600">
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {ingredients.filter(i => i.status === 'valid').length} hợp lệ
-                </span>
-              )}
-              {ingredients.filter(i => i.status === 'warning').length > 0 && (
-                <span className="flex items-center text-yellow-600">
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                  {ingredients.filter(i => i.status === 'warning').length} cảnh báo
-                </span>
-              )}
-              {ingredients.filter(i => i.status === 'invalid').length > 0 && (
-                <span className="flex items-center text-red-600">
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {ingredients.filter(i => i.status === 'invalid').length} không hợp lệ
-                </span>
-              )}
-            </div>
+          <div className="mt-4 flex items-center justify-end">
+            {/* REMOVED: Validation button - AI will handle ingredient interpretation */}
+            {/* Direct submit button */}
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              <span>Tìm công thức với AI ({validCount})</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Validation results */}
-      {validationResults && (
+      {/* Validation results - HIDDEN: AI handles all validation */}
+      {/* {validationResults && (
         <ValidationResults
           valid={validationResults.valid}
           invalid={validationResults.invalid}
@@ -440,10 +403,10 @@ export default function IngredientBatchValidator({
           onRejectCorrection={handleRejectCorrection}
           onRemoveInvalid={handleRemoveIngredient}
         />
-      )}
+      )} */}
 
-      {/* Submit button */}
-      {validationResults && (
+      {/* Submit button - REMOVED: Now integrated above */}
+      {/* {validationResults && (
         <div className="flex items-center justify-between pt-4 border-t">
           <p className="text-sm text-gray-600">
             Bạn có thể sử dụng {validCount} nguyên liệu hợp lệ để tìm công thức
@@ -456,7 +419,7 @@ export default function IngredientBatchValidator({
             Tìm công thức ({validCount})
           </button>
         </div>
-      )}
+      )} */}
     </div>
   );
 }
