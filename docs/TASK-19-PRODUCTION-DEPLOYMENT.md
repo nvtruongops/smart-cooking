@@ -1,46 +1,53 @@
 # TASK 19: PRODUCTION DEPLOYMENT
 
-**Status:** 🚀 IN PROGRESS  
+**Status:** � IN PROGRESS - Pivoted to Docker Strategy  
 **Started:** October 6, 2025  
+**Updated:** October 7, 2025  
 **Environment:** ap-southeast-1 (Singapore)  
-**Domain:** smartcooking.com
+**Deployment Strategy:** AWS App Runner (Docker) - Changed from Amplify
 
 ---
 
 ## 📋 OVERVIEW
 
-Deploy complete Smart Cooking MVP infrastructure and frontend to AWS production environment with:
-- Full infrastructure via AWS CDK
-- Frontend deployment to S3 + CloudFront
-- Custom domain configuration
-- SSL/TLS certificates
-- Monitoring and cost alerting
-- Performance optimization
-- Security hardening
+Deploy complete Smart Cooking MVP infrastructure and frontend to AWS production environment.
+
+**IMPORTANT UPDATE**: After 14 failed Amplify deployments (all 404 errors), pivoted to **AWS App Runner with Docker containers** for better Next.js 15 compatibility.
 
 ---
 
 ## 🎯 OBJECTIVES
 
-### Task 19.1: Infrastructure Deployment ✅
+### Task 19.1: Infrastructure Deployment ✅ COMPLETE
 - [x] Build CDK TypeScript code
-- [ ] Deploy production stacks to ap-southeast-1
-- [ ] Verify DynamoDB tables created
-- [ ] Verify Cognito User Pool configured
-- [ ] Verify Lambda functions deployed
-- [ ] Verify API Gateway endpoints active
-- [ ] Configure custom domain (smartcooking.com)
-- [ ] Setup SSL certificates (ACM)
+- [x] Deploy production stacks to ap-southeast-1
+- [x] Verify DynamoDB tables created (`smart-cooking-data-prod`)
+- [x] Verify Cognito User Pool configured (`ap-southeast-1_Vnu4kcJin`)
+- [x] Verify Lambda functions deployed (12 functions)
+- [x] Verify API Gateway endpoints active
+- [x] Database seeded with 508 Vietnamese ingredients
+- [x] Bedrock AI configured (Claude 3 Haiku)
 
-### Task 19.2: Frontend Deployment
-- [ ] Build Next.js production bundle
-- [ ] Deploy to S3 bucket
-- [ ] Configure CloudFront distribution
-- [ ] Setup custom domain for frontend
-- [ ] Enable CDN caching
-- [ ] Configure CORS policies
+**Status**: ✅ Backend infrastructure 100% operational
 
-### Task 19.3: Post-Deployment Validation
+### Task 19.2: Frontend Deployment ⚠️ CHANGED STRATEGY
+**Original Plan**: Amplify Hosting  
+**Status**: ❌ Abandoned after 14 failed attempts (all 404)  
+**Root Cause**: Amplify WEB/WEB_COMPUTE incompatible with Next.js 15 App Router
+
+**New Plan**: AWS App Runner with Docker  
+- [x] Created Dockerfile (multi-stage build)
+- [x] Created deployment scripts (3 scripts)
+- [x] Local Docker test successful
+- [ ] Push Docker image to ECR
+- [ ] Deploy App Runner service
+- [ ] Configure custom domain
+- [ ] Setup SSL certificate
+- [ ] Configure health checks
+
+**Status**: 🟡 Docker ready, deployment pending
+
+### Task 19.3: Post-Deployment Validation ⏳ PENDING
 - [ ] Run E2E regression tests on production
 - [ ] Verify all API endpoints working
 - [ ] Test user registration flow
@@ -48,6 +55,31 @@ Deploy complete Smart Cooking MVP infrastructure and frontend to AWS production 
 - [ ] Test social features
 - [ ] Monitor CloudWatch logs
 - [ ] Verify cost tracking active
+
+**Status**: ⏳ Waiting for frontend deployment
+
+### Task 19.4: Frontend Bug Fixes 🔴 IN PROGRESS
+**Issue**: Multiple frontend issues discovered during local testing
+
+#### Bug #1: Ingredient Submit Button Not Working
+- **Problem**: "Tìm công thức với AI" button disabled
+- **Cause**: Real-time validation sets status='invalid'
+- **Fix**: Disabled validation, set all status='pending'
+- **Status**: 🟡 Code committed (81eb668), Docker needs rebuild
+
+#### Bug #2: Other Tab Errors
+- **Problem**: Errors when navigating to other tabs
+- **Status**: ❌ Not investigated yet
+- **Priority**: HIGH
+
+#### Bug #3: Lambda TypeScript Build Failed
+- **Problem**: Cannot build ai-suggestion Lambda
+- **Error**: `performance-metrics.ts: TS1005 syntax error`
+- **Impact**: Enhanced AI prompt not deployed
+- **Status**: ❌ Blocked
+- **Workaround**: Old Lambda still works
+
+**Status**: 🔴 Critical bugs blocking deployment
 
 ### Task 19.4: Production Hardening
 - [ ] Enable WAF (Web Application Firewall)
@@ -560,7 +592,60 @@ npx cdk destroy --all --context environment=prod
 
 ---
 
-## 📚 RELATED DOCUMENTATION
+## � DEPLOYMENT HISTORY & ISSUES
+
+### Amplify Deployment Attempts (ABANDONED)
+
+**Period**: October 6-7, 2025  
+**Total Attempts**: 14  
+**Success Rate**: 0%  
+**Decision**: Pivot to Docker + App Runner
+
+#### Detailed Failure Log
+
+| # | Date | Platform | Build | Deploy | Result | Issue |
+|---|------|----------|-------|--------|--------|-------|
+| 1-4 | Oct 6 | WEB | ❌ | - | YAML malformed | Special characters in comments |
+| 5-8 | Oct 6 | WEB | ✅ | ✅ | 404 | Static file routing issue |
+| 9 | Oct 6 | WEB_COMPUTE | ❌ | - | Build failed | Missing adapter |
+| 10 | Oct 6 | WEB_COMPUTE | ❌ | - | Build failed | Adapter incompatible |
+| 11 | Oct 6 | WEB_COMPUTE | ❌ | - | Build failed | Missing deploy-manifest.json |
+| 12 | Oct 6 | WEB | ❌ | - | Build failed | generateStaticParams() required |
+| 13 | Oct 6 | WEB | ❌ | - | Build failed | Static export + dynamic routes conflict |
+| 14 | Oct 7 | WEB | ✅ | ✅ | 404 | Standalone output routing issue |
+
+**Root Cause Analysis**:
+- Amplify WEB platform expects static files
+- WEB_COMPUTE requires adapter (incompatible with Next.js 15)
+- Next.js 15 App Router with dynamic routes incompatible with both platforms
+- Standalone output creates Node.js server (not static files)
+
+**Decision Rationale**:
+- After 14 attempts over 2 days, clear pattern of platform incompatibility
+- Docker provides full control over runtime environment
+- App Runner better suited for containerized Next.js apps
+- Lower risk, more predictable deployment
+
+### Docker + App Runner Strategy
+
+**Status**: ✅ Setup complete, deployment pending  
+**Advantages**:
+- Full control over Node.js runtime
+- Works with any Next.js configuration
+- Auto-scaling built-in
+- Simpler than ECS/EKS
+- Cost-effective for MVP
+
+**Resources Created**:
+- `frontend/Dockerfile` - Multi-stage build (deps → builder → runner)
+- `scripts/deploy-app-runner.ps1` - Local build + ECR push
+- `scripts/deploy-codebuild.ps1` - Cloud-based build
+- `scripts/create-app-runner-service.ps1` - Service provisioning
+- `buildspec-docker.yml` - CodeBuild configuration
+
+---
+
+## �📚 RELATED DOCUMENTATION
 
 - [Production Deployment Summary](./PRODUCTION-DEPLOYMENT-SUMMARY.md)
 - [Custom Domain Setup](./CUSTOM-DOMAIN-SETUP.md)
@@ -568,33 +653,64 @@ npx cdk destroy --all --context environment=prod
 - [Cost Optimization](./PERFORMANCE-OPTIMIZATION-IMPLEMENTATION.md)
 - [ap-southeast-1 Migration](./COMPLETE-MIGRATION-TO-AP-SOUTHEAST-1.md)
 - [Task 18 Completion](./TASK-18-SOCIAL-OPTIMIZATION-COMPLETION.md)
+- **[Task 21: Docker Deployment](../TASK-21-DOCKER-DEPLOYMENT.md)** - Detailed migration documentation
 
 ---
 
-## 🚀 NEXT STEPS (After Deployment)
+## 🚀 IMMEDIATE NEXT STEPS
 
-1. **Marketing & Launch**
-   - Beta user onboarding
-   - Social media announcements
-   - SEO optimization
+### Priority 1: Fix Frontend Bugs (CRITICAL)
+1. **Rebuild Docker container**
+   ```powershell
+   cd frontend
+   docker rm -f smart-cooking-test
+   docker build --no-cache -t smart-cooking-nextjs .
+   docker run -d -p 3000:3000 --name smart-cooking-test smart-cooking-nextjs
+   ```
 
-2. **Monitoring & Optimization**
-   - Daily cost reviews
-   - Performance tuning based on real usage
-   - Cache optimization
+2. **Test ingredient submit button**
+   - Navigate to /ingredients
+   - Add: ca ro, hanh la, rau mui
+   - Click "Tìm công thức với AI"
+   - Should navigate to AI suggestions
 
-3. **Feature Enhancements**
-   - Mobile app (React Native)
-   - Advanced AI features
-   - Social gamification
+3. **Test all tabs**
+   - Dashboard, Profile, Recipes, Feed, Friends, etc.
+   - Document all errors
+   - Fix one by one
 
-4. **Scaling Preparation**
-   - Auto-scaling policies
-   - Multi-region failover
-   - Database sharding strategy
+### Priority 2: Deploy to Production
+1. **Push Docker image to ECR**
+   ```powershell
+   .\scripts\deploy-app-runner.ps1 -Region ap-southeast-1
+   ```
+
+2. **Verify deployment**
+   - Check App Runner service status
+   - Test production URL
+   - Run smoke tests
+
+3. **Configure domain**
+   - Point DNS to App Runner
+   - Setup SSL certificate
+   - Verify HTTPS
+
+### Priority 3: Fix Lambda Build
+1. **Fix TypeScript errors**
+   ```bash
+   cd lambda/shared
+   # Fix performance-metrics.ts
+   ```
+
+2. **Deploy enhanced Lambda**
+   ```bash
+   cd lambda/ai-suggestion
+   npm run build
+   cdk deploy --region ap-southeast-1
+   ```
 
 ---
 
-**Last Updated:** October 6, 2025  
+**Last Updated:** October 7, 2025  
 **Task Owner:** Smart Cooking Team  
-**Status:** 🚀 Ready for Production Deployment
+**Status:** � In Progress - Fixing bugs before production deployment
