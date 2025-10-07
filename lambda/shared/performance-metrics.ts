@@ -24,7 +24,7 @@ export class PerformanceMetrics {
     cacheSize?: number;
   }): Promise<void> {
     try {
-      const metricData = [
+      const metricData: any[] = [
         {
           MetricName: 'CacheHitRate',
           Value: metrics.hitRate,
@@ -60,7 +60,7 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/Cache', metricData);
 
     } catch (error) {
-      logger.error, 'Failed to record cache metrics', {
+      logger.error('Failed to record cache metrics', {
         metrics,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -78,7 +78,7 @@ export class PerformanceMetrics {
     filterApplied?: boolean;
   }): Promise<void> {
     try {
-      const metricData = [
+      const metricData: any[] = [
         {
           MetricName: 'DatabaseQueryTime',
           Value: metrics.queryTime,
@@ -115,7 +115,7 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/Database', metricData);
 
     } catch (error) {
-      logger.error, 'Failed to record database metrics', {
+      logger.error('Failed to record database metrics', {
         metrics,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -136,7 +136,7 @@ export class PerformanceMetrics {
     try {
       const memoryUtilization = (metrics.memoryUsed / metrics.memoryAllocated) * 100;
 
-      const metricData = [
+      const metricData: any[] = [
         {
           MetricName: 'LambdaDuration',
           Value: metrics.duration,
@@ -193,7 +193,7 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/Lambda', metricData);
 
     } catch (error) {
-      logger.error, 'Failed to record Lambda metrics', {
+      logger.error('Failed to record Lambda metrics', {
         metrics,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -211,7 +211,7 @@ export class PerformanceMetrics {
     optimizationStrategy: string;
   }): Promise<void> {
     try {
-      const metricData = [
+      const metricData: any[] = [
         {
           MetricName: 'CostSavings',
           Value: metrics.costSavings,
@@ -254,7 +254,7 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/CostOptimization', metricData);
 
     } catch (error) {
-      logger.error, 'Failed to record cost optimization metrics', {
+      logger.error('Failed to record cost optimization metrics', {
         metrics,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -273,7 +273,7 @@ export class PerformanceMetrics {
     errorRate?: number;
   }): Promise<void> {
     try {
-      const metricData = [
+      const metricData: any[] = [
         {
           MetricName: 'AIGenerationTime',
           Value: metrics.generationTime,
@@ -327,7 +327,7 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/AI', metricData);
 
     } catch (error) {
-      logger.error, 'Failed to record AI metrics', {
+      logger.error('Failed to record AI metrics', {
         metrics,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -355,13 +355,13 @@ export class PerformanceMetrics {
           }))
         }));
 
-        logger.debug, 'Published performance metrics', {
+        logger.debug('Published performance metrics', {
           namespace,
           metricCount: batch.length
         });
 
       } catch (error) {
-        logger.error, 'Failed to publish metrics batch', {
+        logger.error('Failed to publish metrics batch', {
           namespace,
           batchSize: batch.length,
           error: error instanceof Error ? error.message : 'Unknown error'
@@ -398,7 +398,7 @@ export class PerformanceTimer {
   stop(additionalMetrics?: Record<string, any>): number {
     const duration = Date.now() - this.startTime;
     
-    logger.debug, 'Performance timer stopped', {
+    logger.debug('Performance timer stopped', {
       operation: this.operation,
       duration,
       ...additionalMetrics

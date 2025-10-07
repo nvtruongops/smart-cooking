@@ -674,100 +674,176 @@ To have a working MVP, complete these critical tasks:
 
 ## Phase 1 Continued: Production Deployment
 
-- [ ] 19. Configure build and deployment pipelines
-  - [ ] 19.1 Set up frontend build process
-    - Configure Next.js static export with `output: 'export'` in next.config.js
-    - Set up build script: `npm run build` to generate static files in `/out` directory
-    - Configure environment variables for different stages (dev, staging, prod)
-    - Optimize build output: enable minification, compression, and tree shaking
-    - Test static export locally to verify all pages render correctly
+**⚠️ DEPLOYMENT STRATEGY CHANGED (Oct 7, 2025)**
+- **Original Plan**: S3 + CloudFront static export
+- **New Plan**: Docker + AWS App Runner (Next.js 15 incompatible with Amplify/static)
+- **Reason**: 14 Amplify deployment attempts failed (all 404 errors, platform limitation)
+
+---
+
+- [x] 19. Production backend infrastructure deployment
+  - [x] 19.1 Deploy backend infrastructure to ap-southeast-1
+    - ✅ DynamoDB table: smart-cooking-data-prod (ACTIVE)
+    - ✅ Cognito User Pool: ap-southeast-1_Vnu4kcJin (3 test users)
+    - ✅ Lambda functions: 12 deployed (ai-suggestion has TypeScript build issue)
+    - ✅ API Gateway: https://h5qdriw2jh.execute-api.ap-southeast-1.amazonaws.com/prod/
+    - ✅ Bedrock: Claude 3 Haiku (cross-region to us-east-1)
+    - ✅ S3 buckets: User avatars and assets configured
+    - _Requirements: 8.2, 9.1_
+    - **STATUS**: ✅ COMPLETE - Backend 100% operational
+    - **DEPLOYED**: October 5-6, 2025
+
+  - [x] 19.2 Seed production database with Vietnamese ingredients
+    - ✅ Created seed script: scripts/seed-master-ingredients.ts
+    - ✅ 508 Vietnamese ingredients seeded to DynamoDB
+    - ✅ Categories: meat, seafood, vegetable, fruit, grain, legume, dairy, spice, beverage, nut, processed
+    - ✅ Added fuzzy matching aliases: "ca ro" → "Cá rô", "hanh la" → "Hành lá"
+    - ✅ Total DynamoDB items: 1,532 (ingredients + users + indexes)
+    - _Requirements: 3.1, 6.4_
+    - **STATUS**: ✅ COMPLETE
+    - **EXECUTED**: October 7, 2025
+
+  - [x] 19.3 Enhance AI prompt for Vietnamese ingredient matching
+    - ✅ Updated lambda/ai-suggestion/bedrock-client.ts with fuzzy matching instructions
+    - ✅ Dynamic cuisine detection: Vietnam → "Vietnamese", others → country name
+    - ✅ Added examples: "ca ro" → "cà rốt" (carrot), "hanh la" → "hành lá" (green onion)
+    - ✅ Error response format for unrecognizable ingredients
+    - ⚠️ Code committed but Lambda TypeScript build failed (blocked)
+    - _Requirements: 3.1, 3.2_
+    - **STATUS**: 🟡 COMMITTED - Not deployed (build error)
+    - **COMMIT**: 4a08d9e, bd7d82c
+
+  - [x] 19.4 Fix frontend ingredient validation bugs
+    - ✅ Disabled real-time validation: enableRealTimeValidation={false}
+    - ✅ Accept all ingredients: status='pending' (let AI handle interpretation)
+    - ✅ Fixed submit button logic: validCount = ingredients.length
+    - ✅ Updated UI text: "có thể không dấu: ca ro, hanh la, rau mui..."
+    - ⚠️ Code committed but Docker cache prevents deployment
+    - _Bug Context_: Submit button disabled when users input ingredients
+    - _Requirements: 8.2, 2.1_
+    - **STATUS**: 🟡 COMMITTED - Not deployed (Docker cache issue)
+    - **COMMITS**: 81eb668 (validation fix), e5160fb (AI-first flow)
+    - **BLOCKER**: Docker BuildKit caching old .next build
+
+- [ ] 20. ~~Frontend deployment with AWS Amplify~~ **ABANDONED**
+  - [x] 20.1 ~~AWS Amplify deployment attempts~~ **14 FAILURES**
+    - ❌ Attempts #1-4: YAML syntax errors (special characters in comments)
+    - ❌ Attempts #5-8: Build OK, deploy OK, serve 404 (WEB platform)
+    - ❌ Attempt #9: WEB_COMPUTE without adapter (build failed)
+    - ❌ Attempt #10: Added @aws-amplify/adapter-nextjs (incompatible with Next.js 15)
+    - ❌ Attempt #11: Standalone output (missing deploy-manifest.json)
+    - ❌ Attempt #12: Static export (generateStaticParams required)
+    - ❌ Attempt #13: Static + generateStaticParams (conflicts with 'use client')
+    - ❌ Attempt #14: Final standalone attempt (build OK, deploy OK, 404)
+    - **ROOT CAUSE**: Amplify WEB/WEB_COMPUTE architecturally incompatible with Next.js 15 App Router dynamic routes
+    - **DECISION**: ✅ Pivot to Docker + AWS App Runner (Oct 7, 2025)
+    - **TIME INVESTED**: ~6 hours over Oct 6-7, 2025
+    - _Requirements: 8.2, 9.1_
+    - **STATUS**: ❌ ABANDONED - Platform limitation confirmed
+
+  - [x] 20.2 Create Docker deployment infrastructure
+    - ✅ Created frontend/Dockerfile (multi-stage: deps → builder → runner)
+    - ✅ Base image: node:20-alpine
+    - ✅ Output mode: standalone (Next.js server on port 3000)
+    - ✅ Created frontend/.dockerignore (exclude node_modules, .git, etc.)
+    - ✅ Local test: docker run -p 3000:3000 (✅ Working)
+    - ✅ Environment variables configured for production API
+    - _Requirements: 8.2_
+    - **STATUS**: ✅ COMPLETE - Docker container tested locally
+    - **COMMIT**: 96123a4
+
+  - [ ] 20.3 Create AWS App Runner deployment scripts
+    - ✅ Created scripts/deploy-app-runner.ps1 (450 lines)
+      - ECR repository creation and management
+      - Local Docker build and push to ECR
+      - App Runner service creation with auto-scaling
+      - Environment variable injection
+    - ✅ Created scripts/deploy-codebuild.ps1 (300 lines)
+      - Cloud-based Docker build (no local Docker required)
+      - CodeBuild project creation
+      - Automated build and ECR push
+    - ✅ Created scripts/create-app-runner-service.ps1
+      - Service provisioning only (after image in ECR)
+    - [ ] Execute deployment to production
+    - _Requirements: 8.2, 9.1_
+    - **STATUS**: 🟡 SCRIPTS READY - Not executed (waiting for bug fixes)
+    - **COMMIT**: 96123a4
+
+- [ ] 21. Production deployment execution and validation
+  - [ ] 21.1 Fix blocking issues before deployment
+    - [ ] **Priority 1: Docker Cache Issue**
+      - Current: `docker build` using cached layers despite code changes
+      - Attempted: Multiple rebuilds, --no-cache (user cancelled - too slow)
+      - Need: Force rebuild without cache OR manually copy .next folder
+      - Impact: Frontend bug fixes (submit button) not deployed
+      - **BLOCKER**: New code committed but container runs old code
+    
+    - [ ] **Priority 2: Lambda TypeScript Build Error**
+      - Error: `lambda/shared/performance-metrics.ts(66,8): error TS1005: ';' expected`
+      - Impact: Cannot deploy enhanced AI prompt to production
+      - Workaround: Old Lambda version still works
+      - Files affected: bedrock-client.ts, index.ts (AI enhancements)
+      - **BLOCKER**: TypeScript compilation fails
+    
+    - [ ] **Priority 3: Other Tab Errors (Unknown)**
+      - Status: Not investigated
+      - Impact: Unknown scope
+      - **BLOCKER**: Needs investigation
     - _Requirements: 8.2, 9.1_
 
-  - [ ] 19.2 Configure S3 bucket for static hosting
-    - Create S3 bucket with public read access for static website hosting
-    - Enable static website hosting with index.html and error.html configuration
-    - Configure bucket policy to allow public GetObject for website files
-    - Set up bucket CORS configuration for API calls
-    - Enable bucket versioning for rollback capability
+  - [ ] 21.2 Execute Docker + App Runner deployment
+    - [ ] Resolve Docker cache issue
+    - [ ] Build fresh Docker image with latest code
+    - [ ] Push image to ECR: smart-cooking-frontend:latest
+    - [ ] Create App Runner service in ap-southeast-1
+    - [ ] Configure auto-scaling: min=1, max=3 instances
+    - [ ] Set environment variables (API URL, Cognito config)
+    - [ ] Verify deployment: Test registration, login, AI suggestions
+    - [ ] Configure custom domain (optional)
+    - _Commands ready in: scripts/deploy-app-runner.ps1_
     - _Requirements: 8.2, 9.1_
+    - **STATUS**: ⏳ PENDING - Waiting for bug fixes
 
-  - [ ] 19.3 Set up CloudFront distribution
-    - Create CloudFront distribution with S3 bucket as origin
-    - Configure custom domain with Route 53 DNS records
-    - Request and attach SSL/TLS certificate from ACM (us-east-1)
-    - Set up cache behaviors: cache static assets, no-cache for HTML
-    - Configure custom error pages (404 → index.html for SPA routing)
-    - Enable compression (gzip, brotli) for better performance
-    - _Requirements: 8.2, 8.4_
+  - [ ] 21.3 Fix Lambda TypeScript build and deploy AI enhancements
+    - [ ] Investigate performance-metrics.ts syntax error
+    - [ ] Fix TypeScript compilation issue
+    - [ ] Rebuild Lambda deployment package
+    - [ ] Deploy enhanced bedrock-client.ts (fuzzy matching prompt)
+    - [ ] Deploy updated index.ts (skip validation logic)
+    - [ ] Test AI suggestions with Vietnamese inputs: "ca ro, hanh la, rau mui"
+    - [ ] Verify AI correctly interprets: "cà rốt, hành lá, rau mùi"
+    - _Requirements: 3.1, 3.2_
+    - **STATUS**: ⏳ PENDING - Blocked by TypeScript error
 
-  - [ ] 19.4 Implement CI/CD with GitHub Actions
-    - Create GitHub Actions workflow file: `.github/workflows/deploy.yml`
-    - Configure build job: install dependencies → run tests → build static export
-    - Set up deploy job: upload build artifacts to S3 with AWS credentials
-    - Implement CloudFront cache invalidation after deployment
-    - Add deployment notifications (success/failure) to Slack or email
-    - Configure different workflows for dev, staging, and production branches
-    - _Requirements: 8.2, 9.1_
+  - [ ] 21.4 Production validation and monitoring
+    - [ ] Execute smoke tests on deployed frontend
+    - [ ] Test complete user journey: Register → Login → Add ingredients → Get recipes → Rate
+    - [ ] Verify AI suggestions work with Vietnamese ingredient names
+    - [ ] Test submit button with 3-5 ingredients
+    - [ ] Monitor CloudWatch logs for errors
+    - [ ] Check DynamoDB read/write metrics
+    - [ ] Verify Bedrock API call success rate
+    - [ ] Set up cost alerts (budget thresholds)
+    - _Requirements: 9.1, 7.2, All core requirements_
+    - **STATUS**: ⏳ PENDING - Waiting for deployment
 
-  - [ ] 19.5 Set up backend Lambda deployment automation
-    - Create CDK deployment script for all Lambda functions
-    - Configure Lambda layers for shared dependencies (AWS SDK, utilities)
-    - Set up automated build and packaging for Lambda code (zip/container)
-    - Implement blue-green deployment strategy for zero-downtime updates
-    - Configure Lambda versioning and aliases (dev, staging, prod)
-    - Add CloudFormation stack update automation via GitHub Actions
-    - _Requirements: 8.2, 9.1_
-
-- [ ] 20. Implement monitoring and deployment verification
-  - [ ] 20.1 Configure deployment health checks
-    - Create smoke tests to verify critical API endpoints after deployment
-    - Implement automated health check API: GET /health (check DB, Bedrock, S3)
-    - Set up post-deployment verification script to test core user flows
-    - Configure rollback triggers if health checks fail
-    - Add deployment status reporting to monitoring dashboard
-    - _Requirements: 9.1, 7.2_
-
-  - [ ] 20.2 Set up deployment alerts and notifications
-    - Configure SNS topics for deployment events (started, success, failed)
-    - Create CloudWatch alarms for deployment-related errors
-    - Set up Slack/email notifications for deployment status
-    - Implement deployment metrics tracking (frequency, duration, success rate)
-    - Add automated rollback notifications to team communication channels
-    - _Requirements: 9.1, 7.2_
-
-  - [ ] 20.3 Create deployment documentation and runbooks
-    - Document manual deployment steps as backup procedure
-    - Create rollback runbook for emergency situations
-    - Write troubleshooting guide for common deployment issues
-    - Document environment-specific configurations and secrets
-    - Create deployment checklist for major releases
+  - [ ] 21.5 Documentation and launch preparation
+    - [x] ✅ Created TASK-21-DOCKER-DEPLOYMENT.md (256 lines)
+      - Complete migration documentation
+      - Amplify failure analysis (14 attempts)
+      - Docker setup instructions
+      - Known issues log
+      - Next actions with commands
+    - [x] ✅ Updated TASK-19-PRODUCTION-DEPLOYMENT.md
+      - Task 19.4: Frontend bug fixes
+      - Deployment history with failure details
+      - Immediate next steps
+    - [ ] Create production runbook for App Runner
+    - [ ] Document rollback procedures
+    - [ ] Create monitoring dashboard setup guide
+    - [ ] Write user announcement and launch plan
     - _Requirements: 9.1_
-
-- [ ] 21. Production readiness and launch preparation
-  - [ ] 21.1 Perform production environment setup
-    - Deploy all infrastructure to production AWS account using CDK
-    - Configure production-grade DynamoDB with point-in-time recovery
-    - Set up production Cognito User Pool with MFA options
-    - Enable AWS WAF rules for production API Gateway and CloudFront
-    - Configure production SSL certificates and custom domain
-    - _Requirements: 8.2, 8.4, 9.1_
-
-  - [ ] 21.2 Execute production deployment dry run
-    - Perform complete deployment to staging environment
-    - Run full end-to-end testing in staging (all user flows)
-    - Verify monitoring dashboards and alerts are working
-    - Test rollback procedure in staging environment
-    - Document any issues and create mitigation plan
-    - _Requirements: 9.1, All core requirements_
-
-  - [ ] 21.3 Final production deployment and go-live
-    - Execute production deployment during low-traffic window
-    - Monitor CloudWatch metrics during deployment (errors, latency)
-    - Verify all services are healthy: API Gateway, Lambda, DynamoDB, Cognito
-    - Test critical user flows: registration, login, AI suggestions, rating
-    - Enable production monitoring alerts and dashboards
-    - Announce go-live to users and stakeholders
-    - _Requirements: 8.2, 9.1, All requirements_
+    - **STATUS**: 🟡 PARTIAL - Comprehensive docs created, runbook pending
 
 ---
 

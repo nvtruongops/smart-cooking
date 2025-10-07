@@ -1,6 +1,6 @@
 import { DynamoDBClient, QueryCommand, BatchGetItemCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { logStructured } from './monitoring-setup';
+import { logger } from './logger';
 
 /**
  * Optimized DynamoDB query patterns for Smart Cooking MVP
@@ -69,7 +69,7 @@ export class OptimizedQueries {
       const recipes = response.Items?.map(item => unmarshall(item)) || [];
       const queryTime = Date.now() - startTime;
 
-      logStructured('INFO', 'Recipe search completed', {
+      logger.info('Recipe search completed', {
         filters,
         resultCount: recipes.length,
         queryTime,
@@ -84,10 +84,10 @@ export class OptimizedQueries {
 
     } catch (error) {
       const queryTime = Date.now() - startTime;
-      logStructured('ERROR', 'Recipe search failed', {
+      logger.error('Recipe search failed', {
         filters,
         queryTime,
-        error: error.message
+        error: (error as Error).message
       });
       throw error;
     }
@@ -134,7 +134,7 @@ export class OptimizedQueries {
       const sessions = response.Items?.map(item => unmarshall(item)) || [];
       const queryTime = Date.now() - startTime;
 
-      logStructured('INFO', 'Cooking history query completed', {
+      logger.info('Cooking history query completed', {
         userId,
         options,
         resultCount: sessions.length,
@@ -149,11 +149,11 @@ export class OptimizedQueries {
 
     } catch (error) {
       const queryTime = Date.now() - startTime;
-      logStructured('ERROR', 'Cooking history query failed', {
+      logger.error('Cooking history query failed', {
         userId,
         options,
         queryTime,
-        error: error.message
+        error: (error as Error).message
       });
       throw error;
     }
@@ -225,7 +225,7 @@ export class OptimizedQueries {
       const invalidCount = allResults.length - validCount;
       const queryTime = Date.now() - startTime;
 
-      logStructured('INFO', 'Batch ingredient validation completed', {
+      logger.info('Batch ingredient validation completed', {
         totalIngredients: ingredients.length,
         validCount,
         invalidCount,
@@ -241,10 +241,10 @@ export class OptimizedQueries {
 
     } catch (error) {
       const queryTime = Date.now() - startTime;
-      logStructured('ERROR', 'Batch ingredient validation failed', {
+      logger.error('Batch ingredient validation failed', {
         ingredientCount: ingredients.length,
         queryTime,
-        error: error.message
+        error: (error as Error).message
       });
       throw error;
     }
@@ -287,7 +287,7 @@ export class OptimizedQueries {
       const recipes = response.Items?.map(item => unmarshall(item)) || [];
       const queryTime = Date.now() - startTime;
 
-      logStructured('INFO', 'Popular recipes query completed', {
+      logger.info('Popular recipes query completed', {
         options,
         resultCount: recipes.length,
         queryTime
@@ -301,10 +301,10 @@ export class OptimizedQueries {
 
     } catch (error) {
       const queryTime = Date.now() - startTime;
-      logStructured('ERROR', 'Popular recipes query failed', {
+      logger.error('Popular recipes query failed', {
         options,
         queryTime,
-        error: error.message
+        error: (error as Error).message
       });
       throw error;
     }
