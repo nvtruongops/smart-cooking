@@ -124,7 +124,7 @@ export default function IngredientsPage() {
             </h3>
             <div className="space-y-2 text-sm text-green-800">
               <p>
-                • <strong>Không cần gõ dấu:</strong> Nhập "ca ro, hanh la, rau mui" - AI tự hiểu là "cá rô, hành lá, rau mùi"
+                • <strong>Không cần gõ dấu:</strong> Nhập &quot;ca ro, hanh la, rau mui&quot; - AI tự hiểu là &quot;cá rô, hành lá, rau mùi&quot;
               </p>
               <p>
                 • <strong>AI thông minh:</strong> Tự động sửa lỗi chính tả và tìm nguyên liệu tương tự

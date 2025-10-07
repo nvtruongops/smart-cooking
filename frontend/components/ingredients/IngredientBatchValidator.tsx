@@ -101,31 +101,12 @@ export default function IngredientBatchValidator({
       return;
     }
 
-    // Determine initial status based on real-time validation
-    let initialStatus: IngredientState['status'] = 'pending';
-    let validated = name;
-    let warning = undefined;
-
-    if (validation) {
-      if (validation.valid) {
-        if (validation.warning) {
-          initialStatus = 'warning';
-          warning = validation.warning;
-          validated = validation.warning.corrected || name;
-        } else {
-          initialStatus = 'valid';
-        }
-      } else {
-        initialStatus = 'invalid';
-        warning = validation.warning;
-      }
-    }
-
+    // NEW STRATEGY: Accept ALL ingredients regardless of validation
+    // AI will handle interpretation, so we don't need to check status
     setIngredients(prev => [...prev, { 
       name, 
-      status: initialStatus,
-      validated: validated !== name ? validated : undefined,
-      warning,
+      status: 'pending', // Always pending - AI will handle it
+      validated: name,
       realTimeValidation: validation
     }]);
   };
@@ -296,11 +277,11 @@ export default function IngredientBatchValidator({
         </label>
         <IngredientInput
           onAdd={handleAddIngredient}
-          placeholder="Nhập tên nguyên liệu (ví dụ: thịt gà, cà chua, hành tây...)"
-          enableRealTimeValidation={true}
+          placeholder="Nhập tên nguyên liệu (ví dụ: ca ro, hanh la, rau mui...)"
+          enableRealTimeValidation={false}
         />
         <p className="mt-1 text-xs text-gray-500">
-          Nhập từng nguyên liệu và nhấn Enter. Hệ thống sẽ tự động kiểm tra và gợi ý.
+          Nhập từng nguyên liệu và nhấn Enter. AI sẽ tự động hiểu nguyên liệu của bạn.
         </p>
       </div>
 
