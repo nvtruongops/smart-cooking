@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getNotifications,
@@ -25,13 +25,14 @@ export default function NotificationDropdown() {
   const [nextToken, setNextToken] = useState<string | undefined>();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 30 seconds - DISABLED due to missing backend route
   useEffect(() => {
-    if (token) {
-      loadNotifications();
-      const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
-    }
+    // TODO: Enable when /notifications route is implemented
+    // if (token) {
+    //   loadNotifications();
+    //   const interval = setInterval(loadNotifications, 30000);
+    //   return () => clearInterval(interval);
+    // }
   }, [token]);
 
   // Close dropdown when clicking outside

@@ -1,7 +1,7 @@
 'use client';
 
+import React, { useEffect } from 'react';
 import { Recipe, getCookingMethodLabel, getCookingMethodColor, formatTime, getTotalTime, getCuisineTypeLabel, getMealTypeLabel } from '@/types/recipe';
-import { useEffect } from 'react';
 
 interface RecipeDetailModalProps {
   recipe: Recipe | null;
@@ -248,45 +248,22 @@ export default function RecipeDetailModal({
               </div>
             </div>
 
-            {/* Instructions */}
-            <div className="mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                <svg className="h-6 w-6 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Cách làm ({recipe.instructions.length} bước)
-              </h3>
-              <div className="space-y-4">
-                {recipe.instructions.map((instruction) => (
-                  <div key={instruction.step_number} className="flex">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-lg font-bold text-blue-600">{instruction.step_number}</span>
-                    </div>
-                    <div className="ml-4 flex-1">
-                      <p className="text-gray-900">{instruction.description}</p>
-                      {instruction.duration && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          ⏱️ {instruction.duration}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Action Button */}
+            {/* Action Button - Start Cooking */}
             {onStartCooking && (
               <div className="mt-8 pt-6 border-t border-gray-200">
                 <button
                   onClick={() => onStartCooking(recipe)}
-                  className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center"
+                  className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center shadow-lg"
                 >
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   Bắt đầu nấu món này
                 </button>
+                <p className="text-center text-sm text-gray-500 mt-3">
+                  Chế độ hướng dẫn từng bước với timer
+                </p>
               </div>
             )}
           </div>

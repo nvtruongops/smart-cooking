@@ -10,6 +10,14 @@ export interface CookingSession {
   user_id: string;
   recipe_id: string;
   recipe_title?: string;
+  // FIX: Add recipe details for history display
+  recipe_ingredients?: Array<{ name: string; amount: string; unit?: string }>;
+  recipe_instructions?: string[];
+  recipe_cooking_method?: string;
+  recipe_cuisine?: string;
+  recipe_prep_time_minutes?: number;
+  recipe_cook_time_minutes?: number;
+  recipe_image_url?: string;
   status: CookingSessionStatus;
   started_at: string;
   completed_at?: string;
@@ -117,6 +125,14 @@ export interface CookingSessionDynamoItem {
   user_id: string;
   recipe_id: string;
   recipe_title?: string;
+  // FIX: Add recipe details for history display
+  recipe_ingredients?: Array<{ name: string; amount: string; unit?: string }>;
+  recipe_instructions?: string[];
+  recipe_cooking_method?: string;
+  recipe_cuisine?: string;
+  recipe_prep_time_minutes?: number;
+  recipe_cook_time_minutes?: number;
+  recipe_image_url?: string;
   status: CookingSessionStatus;
   started_at: string;
   completed_at?: string;

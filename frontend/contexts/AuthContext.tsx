@@ -10,7 +10,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, username?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -24,18 +24,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
+      console.log('[AuthContext] Checking for existing session...');
       const currentSession = await authService.getCurrentSession();
+      
+      if (!currentSession) {
+        console.log('[AuthContext] No valid session found');
+        setSession(null);
+        setUser(null);
+        return;
+      }
+
+      console.log('[AuthContext] Session found, loading user attributes...');
       const currentUser = await authService.getCurrentUserAttributes();
+      
+      if (!currentUser) {
+        console.log('[AuthContext] Failed to get user attributes');
+        setSession(null);
+        setUser(null);
+        return;
+      }
+
+      console.log('[AuthContext] User authenticated:', currentUser.email);
       setSession(currentSession);
       setUser(currentUser);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[AuthContext] Error refreshing user:', error);
+      
+      // If user doesn't exist, clear local storage
+      if (error.name === 'UserNotFoundException' || error.message?.includes('User does not exist')) {
+        console.log('[AuthContext] User not found, clearing local session');
+        await authService.signOut(); // Clear localStorage
+      }
+      
       setSession(null);
       setUser(null);
     }
   };
 
   useEffect(() => {
-    refreshUser().finally(() => setLoading(false));
+    console.log('[AuthContext] Initializing...');
+    refreshUser().finally(() => {
+      console.log('[AuthContext] Initialization complete');
+      setLoading(false);
+    });
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -45,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(user);
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
-    await authService.signUp({ email, password, name });
+  const signUp = async (email: string, password: string, name: string, username?: string) => {
+    await authService.signUp({ email, password, name, username });
   };
 
   const signOut = async () => {

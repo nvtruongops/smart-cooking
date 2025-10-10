@@ -168,7 +168,7 @@ export class CostOptimizationUtils {
         cognito: 0, // Free tier
         cloudwatch: 8,
         waf: 3,
-        route53: 1
+        // route53: 0 - NOT USED in dev (uses CloudFront domain only)
       },
       prod: {
         lambda: 45,
@@ -180,7 +180,7 @@ export class CostOptimizationUtils {
         cognito: 0, // Free tier
         cloudwatch: 25,
         waf: 10,
-        route53: 3
+        route53: 3 // Only if using custom domain in production
       }
     };
 

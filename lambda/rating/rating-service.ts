@@ -3,6 +3,7 @@ import { logStructured } from '../shared/utils';
 import { AppError } from '../shared/responses';
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBHelper } from '../shared/dynamodb';
+import { IngredientEnrichmentService } from './ingredient-enrichment';
 
 const AUTO_APPROVAL_THRESHOLD = 4.0;
 const MIN_RATINGS_FOR_AUTO_APPROVAL = 3;
@@ -213,6 +214,7 @@ export class RatingService {
 
   /**
    * Auto-approve a recipe based on rating threshold
+   * Also enriches MASTER INGREDIENTS with new ingredients from this recipe
    */
   private static async autoApproveRecipe(recipeId: string) {
     const now = new Date().toISOString();
@@ -220,9 +222,10 @@ export class RatingService {
     await DynamoDBHelper.update(
       `RECIPE#${recipeId}`,
       'METADATA',
-      'SET is_approved = :approved, approval_type = :type, approved_at = :now, updated_at = :now',
+      'SET is_approved = :approved, is_public = :public, approval_type = :type, approved_at = :now, updated_at = :now',
       {
         ':approved': true,
+        ':public': true, // Make recipe public when approved
         ':type': 'auto_rating',
         ':now': now,
       }
@@ -232,6 +235,32 @@ export class RatingService {
       recipeId,
       approvedAt: now,
     });
+
+    // 🎯 NEW: Enrich MASTER INGREDIENTS with new ingredients from this recipe
+    try {
+      const enrichmentResult = await IngredientEnrichmentService.enrichFromApprovedRecipe(recipeId);
+      
+      if (enrichmentResult.newIngredients > 0) {
+        logStructured('INFO', 'MASTER INGREDIENTS enriched from approved recipe', {
+          recipeId,
+          totalIngredients: enrichmentResult.totalIngredients,
+          newIngredients: enrichmentResult.newIngredients,
+          existingIngredients: enrichmentResult.existingIngredients,
+          addedIngredientIds: enrichmentResult.addedIngredientIds,
+        });
+      } else {
+        logStructured('INFO', 'No new ingredients to add to MASTER', {
+          recipeId,
+          totalIngredients: enrichmentResult.totalIngredients,
+        });
+      }
+    } catch (error) {
+      // Don't fail the approval if enrichment fails
+      logStructured('ERROR', 'Failed to enrich MASTER INGREDIENTS', {
+        recipeId,
+        error: String(error),
+      });
+    }
   }
 
   /**

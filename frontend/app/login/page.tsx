@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { redirectBasedOnRole } from '@/lib/adminAuth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -40,7 +41,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      router.push('/dashboard');
+      
+      // Redirect based on user role (admin → /admin, regular → /dashboard)
+      await redirectBasedOnRole(router);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
       setError(errorMessage);

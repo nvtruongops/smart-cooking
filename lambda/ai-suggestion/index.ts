@@ -9,6 +9,7 @@ import { metrics } from '../shared/metrics';
 import { tracer, captureAWS } from '../shared/tracer';
 import { ErrorHandler, withErrorHandling } from '../shared/error-handler';
 import { executeWithRecovery } from '../shared/error-recovery';
+import { IngredientExtractor } from '../shared/ingredient-extractor';
 import { 
   BadRequestError, 
   UnauthorizedError, 
@@ -101,6 +102,9 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
             userId,
             costSavingEnabled: true
           });
+
+          // ✅ NEW: Extract and save ingredients to master DB
+          await extractAndSaveIngredients(aiRecipes);
         } catch (error) {
           // Don't fail the request if saving fails - user still gets recipes
           logger.error('Failed to save AI recipes to database', { error, userId });
@@ -558,6 +562,76 @@ function createSuccessResponse(data: any, additionalHeaders: { [key: string]: st
     },
     body: JSON.stringify(data)
   };
+}
+
+/**
+ * Create error response
+ */
+/**
+ * Extract and save ingredients from AI-generated recipes to master DB
+ */
+async function extractAndSaveIngredients(recipes: Recipe[]): Promise<void> {
+  if (!recipes || recipes.length === 0) {
+    return;
+  }
+
+  logger.info('Extracting ingredients from AI recipes', {
+    recipeCount: recipes.length
+  });
+
+  try {
+    // Prepare recipes for batch processing
+    // Convert RecipeIngredient[] to string[] format
+    const recipesWithIngredients = recipes
+      .filter(r => r.ingredients && r.ingredients.length > 0)
+      .map(r => ({
+        recipe_id: r.recipe_id,
+        ingredients: r.ingredients.map(ing => {
+          // Convert RecipeIngredient object to string format
+          // Example: { ingredient_name: "thịt gà", quantity: "300", unit: "g" }
+          //       → "300 g thịt gà"
+          if (typeof ing === 'string') {
+            return ing;
+          }
+          
+          const parts: string[] = [];
+          if (ing.quantity) parts.push(ing.quantity);
+          if (ing.unit) parts.push(ing.unit);
+          parts.push(ing.ingredient_name);
+          
+          return parts.join(' ');
+        })
+      }));
+
+    if (recipesWithIngredients.length === 0) {
+      logger.warn('No recipes with ingredients to process');
+      return;
+    }
+
+    // Batch process all recipes
+    const result = await IngredientExtractor.batchProcessRecipes(recipesWithIngredients);
+
+    logger.info('Ingredient extraction completed', {
+      ...result,
+      successRate: result.totalExtracted > 0 
+        ? ((result.totalSavedToMaster / result.totalExtracted) * 100).toFixed(2) + '%'
+        : '0%'
+    });
+
+    // Track business metrics
+    logger.logBusinessMetric('ingredients-extracted-to-master', result.totalSavedToMaster, 'count', {
+      totalExtracted: result.totalExtracted,
+      alreadyExists: result.totalAlreadyExists,
+      failed: result.totalFailed,
+      source: 'ai_recipe_generation'
+    });
+  } catch (error) {
+    logger.error('Error extracting ingredients from recipes', {
+      error,
+      recipeCount: recipes.length
+    });
+    // Don't throw - this is a background process
+  }
 }
 
 /**

@@ -51,28 +51,33 @@ jest.mock('../shared/responses', () => ({
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ error, message })
   })),
-  handleError: jest.fn((error) => {
-    if (error.statusCode) {
-      return {
+  handleError: jest.fn().mockImplementation((error) => {
+    if (error && error.statusCode) {
+      const result = {
         statusCode: error.statusCode,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: error.errorCode, message: error.message })
       };
+      return result;
     }
-    return {
+    const fallback = {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'internal_error' })
     };
+    return fallback;
   }),
   AppError: class AppError extends Error {
     statusCode: number;
     errorCode: string;
+    details: any;
     
-    constructor(statusCode: number, errorCode: string, message: string) {
+    constructor(statusCode: number, errorCode: string, message: string, details: any = {}) {
       super(message);
+      this.name = 'AppError';
       this.statusCode = statusCode;
       this.errorCode = errorCode;
+      this.details = details;
     }
   }
 }));
@@ -98,10 +103,67 @@ const mockEvent: Partial<APIGatewayEvent> = {
 
 const dynamoMock = require('../shared/dynamodb');
 const avatarMock = require('../shared/avatar-service');
+const responsesMock = require('../shared/responses');
+const utilsMock = require('../shared/utils');
 
 describe('User Profile Handler', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Restore utils mock implementations after clearAllMocks
+    utilsMock.sanitizeInput.mockImplementation((input: string, maxLength?: number) => {
+      if (!input) return input;
+      return input.replace(/[<>\"'&]/g, '');
+    });
+    utilsMock.formatTimestamp.mockReturnValue('2025-01-01T00:00:00Z');
+    utilsMock.parseJSON.mockImplementation((str: string | null) => {
+      if (!str) return null;
+      try {
+        return JSON.parse(str);
+      } catch {
+        return null;
+      }
+    });
+    utilsMock.getUserIdFromEvent.mockImplementation((event: any) => 
+      event.requestContext?.authorizer?.claims?.sub || 'user-123'
+    );
+    utilsMock.validateAge.mockImplementation((birthDate: string) => {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      const age = today.getFullYear() - birth.getFullYear();
+      return age >= 13;
+    });
+    utilsMock.extractBirthYear.mockImplementation((birthDate: string) => 
+      new Date(birthDate).getFullYear()
+    );
+    
+    // Restore response mock implementations after clearAllMocks
+    responsesMock.successResponse.mockImplementation((data: any, status = 200) => ({
+      statusCode: status,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }));
+    
+    responsesMock.errorResponse.mockImplementation((status: number, error: string, message: string) => ({
+      statusCode: status,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error, message })
+    }));
+    
+    responsesMock.handleError.mockImplementation((error: any) => {
+      if (error && error.statusCode) {
+        return {
+          statusCode: error.statusCode,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: error.errorCode, message: error.message })
+        };
+      }
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal_error', message: 'An error occurred' })
+      };
+    });
 
     // Setup default mock responses
     dynamoMock.DynamoDBHelper.getUserProfile.mockResolvedValue({

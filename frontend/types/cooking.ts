@@ -5,21 +5,29 @@
 import { Recipe } from './recipe';
 
 export interface CookingHistory {
-  history_id: string;
+  session_id: string;
   user_id: string;
   recipe_id: string;
-  suggestion_id?: string;
-  status: 'cooking' | 'completed';
-  personal_rating?: number;
-  personal_notes?: string;
-  is_favorite?: boolean;
-  cook_date?: string;
+  recipe_title?: string;
+  status: 'cooking' | 'completed' | 'abandoned';
+  started_at: string;
+  completed_at?: string;
+  abandoned_at?: string;
+  cooking_duration_minutes?: number;
+  rating?: number;
+  review?: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface CookingHistoryWithRecipe extends CookingHistory {
   recipe?: Recipe;
+  is_favorite?: boolean;
+  personal_rating?: number;
+  personal_notes?: string;
+  cook_date?: string;
+  history_id?: string;
 }
 
 export interface RecipeRating {
@@ -55,21 +63,23 @@ export interface StartCookingRequest {
 }
 
 export interface CompleteCookingRequest {
-  history_id: string;
-  personal_rating?: number;
-  personal_notes?: string;
+  session_id: string;
+  rating?: number;
+  review?: string;
   is_favorite?: boolean;
 }
 
 // UI Helper functions
-export function getStatusLabel(status: 'cooking' | 'completed'): string {
-  return status === 'cooking' ? 'Đang nấu' : 'Hoàn thành';
+export function getStatusLabel(status: 'cooking' | 'completed' | 'abandoned'): string {
+  if (status === 'cooking') return 'Đang nấu';
+  if (status === 'abandoned') return 'Đã hủy';
+  return 'Hoàn thành';
 }
 
-export function getStatusColor(status: 'cooking' | 'completed'): string {
-  return status === 'cooking'
-    ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
-    : 'bg-green-100 text-green-800 border-green-300';
+export function getStatusColor(status: 'cooking' | 'completed' | 'abandoned'): string {
+  if (status === 'cooking') return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+  if (status === 'abandoned') return 'bg-gray-100 text-gray-800 border-gray-300';
+  return 'bg-green-100 text-green-800 border-green-300';
 }
 
 export function formatDate(dateString: string): string {

@@ -13,14 +13,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/lib/auth';
 import { getUserPosts, Post } from '@/services/posts';
 import PostCard from '@/components/posts/PostCard';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface UserStats {
   friend_count: number;
   post_count: number;
-  recipe_count: number;
 }
 
-export default function ProfilePage() {
+interface ProfileData {
+  avatar_url?: string;
+  name?: string;
+  bio?: string;
+}
+
+function ProfilePageContent() {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,8 +35,11 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'posts' | 'security'>('info');
   
+  // Profile data
+  const [profile, setProfile] = useState<ProfileData>({});
+  
   // Social features state
-  const [stats, setStats] = useState<UserStats>({ friend_count: 0, post_count: 0, recipe_count: 0 });
+  const [stats, setStats] = useState<UserStats>({ friend_count: 0, post_count: 0 });
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   
@@ -38,19 +47,31 @@ export default function ProfilePage() {
   const { user, token, signOut } = useAuth();
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-
     // Fetch user stats and posts
     const fetchUserData = async () => {
-      if (!token) return;
+      if (!token || !user) return;
 
       try {
-        // Fetch stats
         const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-        const statsResponse = await fetch(`${API_URL}/users/me/stats`, {
+        
+        // Fetch profile data (including avatar)
+        const profileResponse = await fetch(`${API_URL}/v1/users/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          console.log('[Profile] Profile data:', profileData);
+          // API returns {success: true, data: {profile: {...}}}
+          const profile = profileData.data?.profile || profileData.data || {};
+          setProfile(profile);
+          console.log('[Profile] Avatar URL:', profile.avatar_url);
+        }
+
+        // Fetch stats
+        const statsResponse = await fetch(`${API_URL}/v1/users/me/stats`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -58,7 +79,10 @@ export default function ProfilePage() {
 
         if (statsResponse.ok) {
           const statsData = await statsResponse.json();
-          setStats(statsData.stats || { friend_count: 0, post_count: 0, recipe_count: 0 });
+          setStats(statsData.stats || { friend_count: 0, post_count: 0 });
+        } else {
+          // Fallback to default if endpoint fails
+          setStats({ friend_count: 0, post_count: 0 });
         }
 
         // Fetch posts if on posts tab
@@ -70,11 +94,13 @@ export default function ProfilePage() {
         }
       } catch (err) {
         console.error('Failed to load user data:', err);
+        // Fallback to default stats
+        setStats({ friend_count: 0, post_count: 0 });
       }
     };
 
     fetchUserData();
-  }, [user, router, token, activeTab]);
+  }, [token, activeTab]); // Removed user and router to avoid re-fetch loops
 
   const validatePasswordForm = () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
@@ -132,6 +158,17 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
+        {/* Back to Dashboard Link */}
+        <Link
+          href="/dashboard"
+          className="text-blue-600 hover:text-blue-700 flex items-center gap-2 mb-6"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Dashboard
+        </Link>
+
         {/* Profile Header */}
         <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
           <div className="h-32 bg-gradient-to-r from-blue-500 to-purple-600"></div>
@@ -140,11 +177,19 @@ export default function ProfilePage() {
             <div className="relative flex flex-col sm:flex-row items-center sm:items-start -mt-16 mb-4">
               {/* Avatar */}
               <div className="relative w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-gray-200">
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-500">
-                  <span className="text-4xl font-bold text-white">
-                    {(user.name || user.email).charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                {profile.avatar_url ? (
+                  <img 
+                    src={profile.avatar_url} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-500">
+                    <span className="text-4xl font-bold text-white">
+                      {(user.name || user.email).charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Name and Stats */}
@@ -168,19 +213,13 @@ export default function ProfilePage() {
                     </span>
                     <span className="text-gray-600 ml-1">Posts</span>
                   </div>
-                  <div>
-                    <span className="font-semibold text-gray-900">
-                      {stats.recipe_count}
-                    </span>
-                    <span className="text-gray-600 ml-1">Recipes</span>
-                  </div>
                 </div>
               </div>
 
               {/* Settings Link */}
               <div className="mt-4 sm:mt-0 sm:ml-auto">
                 <Link
-                  href="/settings/privacy"
+                  href="/profile/privacy"
                   className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   <svg
@@ -260,10 +299,11 @@ export default function ProfilePage() {
                     <dt className="text-sm font-medium text-gray-500">Email</dt>
                     <dd className="mt-1 text-sm text-gray-900">{user.email}</dd>
                   </div>
-                  <div>
+                  {/* User ID hidden - not needed for end users */}
+                  {/* <div>
                     <dt className="text-sm font-medium text-gray-500">User ID</dt>
                     <dd className="mt-1 text-sm text-gray-900 font-mono text-xs">{user.sub}</dd>
-                  </div>
+                  </div> */}
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Friends</dt>
                     <dd className="mt-1 text-sm text-gray-900">
@@ -278,6 +318,24 @@ export default function ProfilePage() {
                   <h3 className="text-sm font-medium text-gray-900 mb-3">Quick Actions</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Link
+                      href="/profile/edit"
+                      className="inline-flex items-center px-4 py-2 border border-blue-300 shadow-sm text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit Profile
+                    </Link>
+                    <Link
+                      href="/profile/preferences"
+                      className="inline-flex items-center px-4 py-2 border border-blue-300 shadow-sm text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      Preferences
+                    </Link>
+                    <Link
                       href="/feed"
                       className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                     >
@@ -290,7 +348,7 @@ export default function ProfilePage() {
                       Manage Friends
                     </Link>
                     <Link
-                      href="/settings/privacy"
+                      href="/profile/privacy"
                       className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                     >
                       Privacy Settings
@@ -457,5 +515,14 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Wrap with ProtectedRoute to handle authentication
+export default function ProfilePage() {
+  return (
+    <ProtectedRoute>
+      <ProfilePageContent />
+    </ProtectedRoute>
   );
 }

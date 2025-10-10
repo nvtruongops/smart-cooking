@@ -27,109 +27,116 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
   logger.initFromEvent(event);
   logger.logFunctionStart('ingredient-validator', event);
 
-  return await ErrorHandler.executeWithErrorHandling(
-    async () => {
-      // Validate request body
-      const body = ErrorHandler.validateRequest(event.body, ['ingredients']);
-      
-      // Additional validation for ingredient validator specific fields
-      if (!Array.isArray(body.ingredients)) {
-        throw new ValidationError('ingredients field must be an array');
-      }
-      
-      if (body.ingredients.length === 0) {
-        throw new ValidationError('ingredients array cannot be empty');
-      }
-      
-      if (body.ingredients.length > 20) {
-        throw new ValidationError('ingredients array cannot contain more than 20 items');
-      }
-
-      const { ingredients } = body;
-      logger.info('Processing ingredient validation', {
-        ingredientCount: ingredients.length,
-        ingredients: ingredients
-      });
-
-      // Process ingredients with error recovery
-      const validationResults = await executeWithRecovery(
-        async () => {
-          const results = [];
-          for (const ingredient of ingredients) {
-            const result = await validateIngredient(ingredient.trim());
-            results.push(result);
-          }
-          return results;
-        },
-        {
-          operation: 'ingredient-validation',
-          requestId: event.requestContext.requestId,
-          originalRequest: { ingredients },
-          metadata: { allowPartialSuccess: true }
+  try {
+    return await ErrorHandler.executeWithErrorHandling(
+      async () => {
+        // Validate request body
+        const body = ErrorHandler.validateRequest(event.body, ['ingredients']);
+        
+        // Additional validation for ingredient validator specific fields
+        if (!Array.isArray(body.ingredients)) {
+          throw new ValidationError('ingredients field must be an array');
         }
-      );
+        
+        if (body.ingredients.length === 0) {
+          throw new ValidationError('ingredients array cannot be empty');
+        }
+        
+        if (body.ingredients.length > 20) {
+          throw new ValidationError('ingredients array cannot contain more than 20 items');
+        }
 
-      // Aggregate results
-      const valid: string[] = [];
-      const invalid: string[] = [];
-      const warnings: ValidationWarning[] = [];
+        const { ingredients } = body;
+        logger.info('Processing ingredient validation', {
+          ingredientCount: ingredients.length,
+          ingredients: ingredients
+        });
 
-      validationResults.forEach(result => {
-        if (result.isValid) {
-          valid.push(result.correctedName || result.originalName);
-          if (result.warning) {
-            warnings.push(result.warning);
+        // Process ingredients with error recovery
+        const validationResults = await executeWithRecovery(
+          async () => {
+            const results = [];
+            for (const ingredient of ingredients) {
+              const result = await validateIngredient(ingredient.trim());
+              results.push(result);
+            }
+            return results;
+          },
+          {
+            operation: 'ingredient-validation',
+            requestId: event.requestContext.requestId,
+            originalRequest: { ingredients },
+            metadata: { allowPartialSuccess: true }
           }
-        } else {
-          invalid.push(result.originalName);
-          if (result.warning) {
-            warnings.push(result.warning);
+        );
+
+        // Aggregate results
+        const valid: string[] = [];
+        const invalid: string[] = [];
+        const warnings: ValidationWarning[] = [];
+
+        validationResults.forEach(result => {
+          if (result.isValid) {
+            valid.push(result.correctedName || result.originalName);
+            if (result.warning) {
+              warnings.push(result.warning);
+            }
+          } else {
+            invalid.push(result.originalName);
+            if (result.warning) {
+              warnings.push(result.warning);
+            }
+          }
+        });
+
+        const response: ValidationResponse = {
+          valid,
+          invalid,
+          warnings
+        };
+
+        // Track metrics
+        metrics.trackIngredientValidation(ingredients.length, valid.length, invalid.length);
+        
+        const duration = Date.now() - startTime;
+        metrics.trackApiRequest(200, duration, 'ingredient-validator');
+        
+        logger.info('Validation completed successfully', {
+          validCount: valid.length,
+          invalidCount: invalid.length,
+          warningCount: warnings.length,
+          duration
+        });
+        
+        logger.logFunctionEnd('ingredient-validator', 200, duration);
+        
+        return successResponse(response);
+      },
+      {
+        operation: 'ingredient-validator',
+        requestId: event.requestContext.requestId,
+        enableRetry: true,
+        retryOptions: {
+          maxRetries: 2,
+          baseDelay: 500,
+          shouldRetry: (error: Error) => {
+            // Retry on database errors but not validation errors
+            return error.name === 'ThrottlingException' ||
+                   error.name === 'ProvisionedThroughputExceededException' ||
+                   error.message.includes('timeout');
           }
         }
-      });
-
-      const response: ValidationResponse = {
-        valid,
-        invalid,
-        warnings
-      };
-
-      // Track metrics
-      metrics.trackIngredientValidation(ingredients.length, valid.length, invalid.length);
-      
-      const duration = Date.now() - startTime;
-      metrics.trackApiRequest(200, duration, 'ingredient-validator');
-      
-      logger.info('Validation completed successfully', {
-        validCount: valid.length,
-        invalidCount: invalid.length,
-        warningCount: warnings.length,
-        duration
-      });
-      
-      logger.logFunctionEnd('ingredient-validator', 200, duration);
-      
-      return successResponse(response);
-    },
-    {
+      }
+    );
+  } catch (error) {
+    return ErrorHandler.handleError(error as Error, {
       operation: 'ingredient-validator',
-      requestId: event.requestContext.requestId,
-      enableRetry: true,
-      retryOptions: {
-        maxRetries: 2,
-        baseDelay: 500,
-        shouldRetry: (error: Error) => {
-          // Retry on database errors but not validation errors
-          return error.name === 'ThrottlingException' ||
-                 error.name === 'ProvisionedThroughputExceededException' ||
-                 error.message.includes('timeout');
-        }
-      }
-    }
-  ).finally(async () => {
+      requestId: event.requestContext.requestId
+    });
+  } finally {
     // Flush metrics before function ends
     await metrics.flush();
-  });
+  }
 };
 
 interface ValidationResult {

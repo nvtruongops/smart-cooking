@@ -89,7 +89,10 @@ export function formatTimestamp(date: Date = new Date()): string {
   return date.toISOString();
 }
 
-export function parseJSON(jsonString: string): any {
+export function parseJSON(jsonString: string | null): any {
+  if (!jsonString) {
+    return null;
+  }
   try {
     return JSON.parse(jsonString);
   } catch (error) {

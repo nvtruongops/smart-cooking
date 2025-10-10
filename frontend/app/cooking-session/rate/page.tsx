@@ -54,7 +54,7 @@ export default function RatePage() {
         recipe_id: recipe.recipe_id,
         rating,
         comment: comment.trim() || undefined,
-        history_id: session.history_id
+        history_id: session.session_id
       });
 
       // Clear session data

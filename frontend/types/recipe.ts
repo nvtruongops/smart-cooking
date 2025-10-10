@@ -13,7 +13,9 @@ export interface RecipeIngredient {
 export interface RecipeInstruction {
   step_number: number;
   description: string;
-  duration?: string;
+  duration?: string; // Legacy - string format like "3 minutes"
+  duration_minutes?: number; // New - numeric minutes for auto-timer
+  tips?: string; // Optional cooking tips
 }
 
 export interface NutritionalInfo {

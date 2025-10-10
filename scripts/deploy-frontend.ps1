@@ -3,7 +3,7 @@
 
 param(
     [string]$Environment = "dev",
-    [string]$Region = "us-east-1",
+    [string]$Region = "ap-southeast-1",
     [switch]$SkipBuild,
     [switch]$SkipTests,
     [switch]$DryRun,
@@ -139,10 +139,10 @@ function Get-StackOutput {
 # Get infrastructure outputs from CloudFormation
 Write-Status "Getting infrastructure information..."
 
-$BucketName = Get-StackOutput "SmartCooking-$Environment-Frontend" "WebsiteBucketName"
-$DistributionId = Get-StackOutput "SmartCooking-$Environment-Frontend" "DistributionId"
-$ApiUrl = Get-StackOutput "SmartCooking-$Environment-Api" "ApiUrl"
-$UserPoolId = Get-StackOutput "SmartCooking-$Environment-Auth" "UserPoolId"
+$BucketName = Get-StackOutput "SmartCooking-$Environment-Simple" "S3BucketName"
+$DistributionId = Get-StackOutput "SmartCooking-$Environment-Simple" "CloudFrontDistributionId"
+$ApiUrl = Get-StackOutput "SmartCooking-$Environment-Simple" "ApiUrl"
+$UserPoolId = Get-StackOutput "SmartCooking-$Environment-Simple" "UserPoolId"
 $UserPoolClientId = Get-StackOutput "SmartCooking-$Environment-Auth" "UserPoolClientId"
 $WebsiteUrl = Get-StackOutput "SmartCooking-$Environment-Frontend" "WebsiteUrl"
 

@@ -1,0 +1,16 @@
+{
+  "name": "suspension-stream-processor",
+  "version": "1.0.0",
+  "description": "DynamoDB Streams processor for auto-unsuspending users via TTL",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.645.0",
+    "@aws-sdk/client-ses": "^3.645.0",
+    "@aws-sdk/util-dynamodb": "^3.645.0"
+  },
+  "author": "Smart Cooking Team",
+  "license": "MIT"
+}

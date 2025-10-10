@@ -39,6 +39,7 @@ export interface UserProfile {
   gender?: 'male' | 'female' | 'other';
   country?: string;
   avatar_url?: string;
+  bio?: string; // Max 500 characters - user's personal description
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +51,13 @@ export interface UserPreferences {
   preferred_cooking_methods: string[];
   preferred_recipe_count?: number;
   spice_level?: 'mild' | 'medium' | 'hot';
+  
+  // AI Personalization fields (Phase 1 - Critical)
+  cooking_skill_level?: 'beginner' | 'intermediate' | 'expert';
+  max_cooking_time_minutes?: number; // 15, 30, 60, 120
+  household_size?: number; // 1-6 people
+  budget_level?: 'economical' | 'moderate' | 'premium';
+  health_goals?: ('weight_loss' | 'muscle_gain' | 'general_health')[];
 }
 
 export type PrivacyLevel = 'public' | 'friends' | 'private';

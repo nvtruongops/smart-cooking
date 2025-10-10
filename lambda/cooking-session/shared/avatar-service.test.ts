@@ -3,7 +3,7 @@
  * Tests S3 integration, validation, and error handling
  */
 
-import { AppError } from './responses';
+import { AppError } from '../../shared/responses';
 
 // Mock shared utilities first
 jest.mock('./utils', () => ({

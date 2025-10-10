@@ -9,6 +9,15 @@ export interface UserContext {
   allergies: string[];
   favorite_cuisines: string[];
   preferred_cooking_methods: string[];
+  
+  // AI Personalization Fields (Phase 1 - October 2025)
+  cooking_skill_level?: 'beginner' | 'intermediate' | 'expert';
+  max_cooking_time_minutes?: number;
+  household_size?: number;
+  budget_level?: 'economical' | 'moderate' | 'premium';
+  health_goals?: string[];
+  preferred_recipe_count?: number;
+  spice_level?: 'mild' | 'medium' | 'hot';
 }
 
 export interface AIRecipeRequest {
@@ -101,12 +110,15 @@ export class BedrockAIClient {
 
 IMPORTANT - INGREDIENT MATCHING:
 The user may input ingredients WITHOUT Vietnamese diacritics or with typos. You MUST intelligently match them:
-- "ca ro" → cà rốt (carrot)
+- "ca ro" → cá rô (anabas fish)
+- "ca rot" → cà rốt (carrot)
 - "hanh la" → hành lá (green onion) 
 - "ca chua" → cà chua (tomato)
 - "thit ga" → thịt gà (chicken)
+- "thit bo" → thịt bò (beef)
 - "tom" → tôm (shrimp)
 - "ca" → cá (fish)
+- "muc" → mực (squid)
 Use your knowledge to identify the correct ingredient even with missing diacritics or minor spelling variations.
 
 COOKING METHOD: ${cooking_method}
@@ -116,13 +128,23 @@ ${personalizationContext}
 
 REQUIREMENTS:
 1. INTELLIGENTLY INTERPRET ingredient names - match "ca ro" to "cà rốt", "hanh" to "hành", etc.
-2. Use ONLY the provided ingredients (interpret them correctly, then use them)
-3. Create authentic ${cuisineType} recipes using the specified cooking method: ${cooking_method}
-4. Ensure recipes are suitable for the user's dietary needs and preferences
-5. Include detailed step-by-step instructions in ${language}
-6. Provide cooking and prep times
-7. Specify serving size
-8. In the response, use CORRECT Vietnamese spelling with proper diacritics
+2. CLASSIFY each ingredient into category: meat, seafood, vegetable, spice, grain, dairy, or other
+3. Use ONLY the provided ingredients (interpret them correctly, then use them)
+4. Create authentic ${cuisineType} recipes using the specified cooking method: ${cooking_method}
+5. Ensure recipes are suitable for the user's dietary needs and preferences
+6. Include detailed step-by-step instructions in ${language}
+7. Provide cooking and prep times
+8. Specify serving size
+9. In the response, use CORRECT Vietnamese spelling with proper diacritics
+
+INGREDIENT CLASSIFICATION GUIDE:
+- meat: thịt gà, thịt bò, thịt heo, vịt, dê, etc.
+- seafood: cá, tôm, mực, cua, nghêu, sò, etc.
+- vegetable: cà chua, hành lá, cà rốt, rau muống, bắp cải, etc.
+- spice: tỏi, gừng, ớt, tiêu, sả, nghệ, etc.
+- grain: gạo, bún, miến, bánh phở, etc.
+- dairy: sữa, bơ, phô mai, sữa chua, etc.
+- other: anything else
 
 RESPONSE FORMAT (JSON only, no additional text):
 
@@ -145,14 +167,16 @@ IF YOU CAN CREATE RECIPES WITH THESE INGREDIENTS:
           "quantity": "amount",
           "unit": "unit (optional)",
           "preparation": "preparation method (optional)",
-          "is_optional": false
+          "is_optional": false,
+          "category": "meat|seafood|vegetable|spice|grain|dairy|other - MUST classify each ingredient"
         }
       ],
       "instructions": [
         {
           "step_number": 1,
-          "description": "Detailed instruction in ${language}",
-          "duration": "time estimate (optional)"
+          "description": "VERY DETAILED instruction in ${language} - include specific amounts (50ml oil, 2 cloves garlic minced, etc.), specific cooking actions (heat oil on medium heat, stir-fry until golden, etc.)",
+          "duration_minutes": number (REQUIRED if step needs timing - e.g., 3 for 'heat oil for 3 minutes', 2 for 'stir-fry garlic for 2 minutes', null if no timing needed),
+          "tips": "helpful cooking tip (optional)"
         }
       ],
       "nutritional_info": {
@@ -164,6 +188,13 @@ IF YOU CAN CREATE RECIPES WITH THESE INGREDIENTS:
     }
   ]
 }
+
+INSTRUCTION WRITING GUIDELINES:
+- BE VERY SPECIFIC: Instead of "heat oil", write "pour 50ml vegetable oil and heat on medium heat for 3 minutes"
+- INCLUDE TIMING: If a step requires waiting/cooking, specify duration_minutes (e.g., 3 minutes to heat oil, 2 minutes to stir-fry garlic)
+- BREAK DOWN COMPLEX STEPS: Instead of "prepare ingredients", split into "mince 3 cloves garlic (1 minute)", "slice beef into thin strips (2 minutes)"
+- SPECIFY QUANTITIES: "add 2 tablespoons fish sauce", "cut 200g beef into bite-sized pieces"
+- ADD VISUAL CUES: "stir-fry until garlic is golden brown", "cook until meat changes color"
 
 IF INGREDIENTS ARE UNCLEAR OR CANNOT CREATE RECIPES:
 {
@@ -208,7 +239,8 @@ REMEMBER:
 
     // Critical dietary restrictions
     if (userContext.allergies.length > 0) {
-      contextParts.push(`ALLERGIES (MUST AVOID): ${userContext.allergies.join(', ')}`);
+      contextParts.push(`⚠️ ALLERGIES (MUST AVOID - CRITICAL): ${userContext.allergies.join(', ')}`);
+      contextParts.push(`NEVER include these allergens in ANY recipe. Double-check all ingredients including sauces and condiments.`);
     }
 
     // Dietary preferences
@@ -226,8 +258,79 @@ REMEMBER:
       contextParts.push(`PREFERRED COOKING METHODS: ${userContext.preferred_cooking_methods.join(', ')}`);
     }
 
+    // AI Personalization - Cooking Skill Level
+    if (userContext.cooking_skill_level) {
+      const skillInstructions = {
+        'beginner': 'Use SIMPLE techniques (boil, bake, stir-fry). Provide VERY DETAILED step-by-step instructions. Avoid complex knife skills or advanced techniques. Keep recipes under 5 main steps.',
+        'intermediate': 'Can use MODERATE complexity (sauté, reduction, braising). Provide clear but concise instructions. Recipes can have 5-10 steps.',
+        'expert': 'Can use ADVANCED techniques (sous vide, emulsification, tempering). Use gourmet ingredients. Professional-level instructions. No step limit.'
+      };
+      contextParts.push(`COOKING SKILL LEVEL: ${userContext.cooking_skill_level.toUpperCase()}`);
+      contextParts.push(`  → ${skillInstructions[userContext.cooking_skill_level]}`);
+    }
+
+    // AI Personalization - Time Constraint
+    if (userContext.max_cooking_time_minutes) {
+      const timeInstructions = userContext.max_cooking_time_minutes <= 15 
+        ? 'Focus on ULTRA-QUICK recipes (salads, sandwiches, simple stir-fries). Minimize prep time.'
+        : userContext.max_cooking_time_minutes <= 30
+        ? 'Suggest QUICK weeknight meals. Use one-pot/one-pan recipes. Avoid slow-cooking.'
+        : userContext.max_cooking_time_minutes <= 60
+        ? 'Standard recipe complexity. Can include baking, roasting, or braising.'
+        : 'Can suggest elaborate recipes with slow-cooking, smoking, or long braises.';
+      contextParts.push(`MAXIMUM COOKING TIME: ${userContext.max_cooking_time_minutes} minutes`);
+      contextParts.push(`  → ${timeInstructions}`);
+    }
+
+    // AI Personalization - Household Size
+    if (userContext.household_size) {
+      contextParts.push(`HOUSEHOLD SIZE: ${userContext.household_size} ${userContext.household_size === 1 ? 'person' : 'people'}`);
+      contextParts.push(`  → Scale ALL ingredient quantities for ${userContext.household_size} servings`);
+      if (userContext.household_size === 1) {
+        contextParts.push(`  → Suggest recipes that store well for leftovers or can be easily halved`);
+      } else if (userContext.household_size >= 5) {
+        contextParts.push(`  → Suggest family-style or batch recipes`);
+      }
+    }
+
+    // AI Personalization - Budget Level
+    if (userContext.budget_level) {
+      const budgetInstructions = {
+        'economical': 'Use AFFORDABLE, common ingredients (rice, pasta, beans, eggs, chicken). Avoid expensive cuts or exotic items. Maximize ingredient usage. Target: Under $3-5 per serving.',
+        'moderate': 'Balance quality and cost. Can include mid-range ingredients (salmon, beef, specialty vegetables). Mix affordable staples with some premium items. Target: $5-10 per serving.',
+        'premium': 'Use HIGH-QUALITY, gourmet ingredients. Can include expensive cuts (wagyu, lobster, truffle). Focus on premium brands and organic options. Target: $10+ per serving.'
+      };
+      contextParts.push(`BUDGET LEVEL: ${userContext.budget_level.toUpperCase()}`);
+      contextParts.push(`  → ${budgetInstructions[userContext.budget_level]}`);
+    }
+
+    // AI Personalization - Health Goals
+    if (userContext.health_goals && userContext.health_goals.length > 0) {
+      contextParts.push(`HEALTH GOALS: ${userContext.health_goals.join(', ')}`);
+      
+      if (userContext.health_goals.includes('weight_loss')) {
+        contextParts.push(`  → WEIGHT LOSS: Prioritize low-calorie (300-500 cal/serving), high-protein, high-fiber. Use lean proteins. Minimize added fats and sugars. Prefer grilling, steaming, or baking over frying.`);
+      }
+      if (userContext.health_goals.includes('muscle_gain')) {
+        contextParts.push(`  → MUSCLE GAIN: Ensure high protein (30-40g per serving). Include complex carbs for energy. Balance: 40% carbs, 30% protein, 30% healthy fats.`);
+      }
+      if (userContext.health_goals.includes('general_health')) {
+        contextParts.push(`  → GENERAL HEALTH: Focus on whole, unprocessed ingredients. Variety of colorful vegetables. Limit sodium and added sugars. Include healthy fats (olive oil, avocado, nuts).`);
+      }
+    }
+
+    // Spice Level Preference
+    if (userContext.spice_level) {
+      contextParts.push(`SPICE LEVEL PREFERENCE: ${userContext.spice_level.toUpperCase()}`);
+    }
+
+    // Preferred Recipe Count
+    if (userContext.preferred_recipe_count) {
+      contextParts.push(`NUMBER OF RECIPES TO SUGGEST: ${userContext.preferred_recipe_count}`);
+    }
+
     return contextParts.length > 0 
-      ? `USER PREFERENCES:\n${contextParts.join('\n')}\n`
+      ? `USER PREFERENCES AND CONSTRAINTS:\n${contextParts.join('\n')}\n`
       : '';
   }
 
@@ -432,6 +535,35 @@ REMEMBER:
     // Add country (if provided)
     if (profile?.country) {
       context.country = profile.country;
+    }
+
+    // Add AI Personalization fields (Phase 1 - October 2025)
+    if (preferences?.cooking_skill_level) {
+      context.cooking_skill_level = preferences.cooking_skill_level;
+    }
+
+    if (preferences?.max_cooking_time_minutes) {
+      context.max_cooking_time_minutes = preferences.max_cooking_time_minutes;
+    }
+
+    if (preferences?.household_size) {
+      context.household_size = preferences.household_size;
+    }
+
+    if (preferences?.budget_level) {
+      context.budget_level = preferences.budget_level;
+    }
+
+    if (preferences?.health_goals && preferences.health_goals.length > 0) {
+      context.health_goals = preferences.health_goals;
+    }
+
+    if (preferences?.spice_level) {
+      context.spice_level = preferences.spice_level;
+    }
+
+    if (preferences?.preferred_recipe_count) {
+      context.preferred_recipe_count = preferences.preferred_recipe_count;
     }
 
     return context;

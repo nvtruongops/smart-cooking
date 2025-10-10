@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Post } from '@/services/posts';
@@ -86,7 +86,7 @@ export default function PostCard({
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-500">
                 <span className="text-lg font-bold text-white">
-                  {post.username.charAt(0).toUpperCase()}
+                  {(post.username || post.full_name || 'U').charAt(0).toUpperCase()}
                 </span>
               </div>
             )}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RecipeCard from '@/components/recipes/RecipeCard';
 import RecipeDetailModal from '@/components/recipes/RecipeDetailModal';
+import CookingMode from '@/components/cooking/CookingMode';
 import { Recipe, AISuggestionResponse } from '@/types/recipe';
 import { getAISuggestions, AISuggestionRequest } from '@/services/ingredientService';
 
@@ -16,6 +17,7 @@ export default function AISuggestionsPage() {
   const [suggestions, setSuggestions] = useState<AISuggestionResponse | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [cookingRecipe, setCookingRecipe] = useState<Recipe | null>(null);
 
   // Load ingredients from sessionStorage
   useEffect(() => {
@@ -65,9 +67,53 @@ export default function AISuggestionsPage() {
   };
 
   const handleStartCooking = (recipe: Recipe) => {
-    // Store recipe in sessionStorage and navigate to cooking session
-    sessionStorage.setItem('cooking_recipe', JSON.stringify(recipe));
-    router.push('/cooking-session');
+    setCookingRecipe(recipe);
+    setIsModalOpen(false);
+  };
+
+  const handleCookingComplete = async (rating: number) => {
+    console.log(`Recipe completed with rating: ${rating}`);
+    
+    if (!cookingRecipe) return;
+    
+    try {
+      // Import cooking service
+      const { startCooking, completeCooking } = await import('@/services/cookingService');
+      
+      // Step 1: Start cooking session
+      const session = await startCooking({
+        recipe_id: cookingRecipe.recipe_id
+      });
+      
+      console.log('✅ Cooking session started:', session.session_id);
+      
+      // Step 2: Complete cooking session with rating
+      await completeCooking({
+        session_id: session.session_id,
+        rating: rating
+      });
+      
+      console.log('✅ Cooking session completed with rating:', rating);
+      
+      // Reset state
+      setCookingRecipe(null);
+      
+      // Clear ingredients from sessionStorage
+      sessionStorage.removeItem('selected_ingredients');
+      
+      // Redirect to dashboard
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('❌ Failed to save cooking session:', error);
+      // Still redirect even if save fails
+      setCookingRecipe(null);
+      sessionStorage.removeItem('selected_ingredients');
+      router.push('/dashboard');
+    }
+  };
+
+  const handleCookingCancel = () => {
+    setCookingRecipe(null);
   };
 
   const handleBackToIngredients = () => {
@@ -298,6 +344,15 @@ export default function AISuggestionsPage() {
         onClose={() => setIsModalOpen(false)}
         onStartCooking={handleStartCooking}
       />
+
+      {/* Cooking Mode */}
+      {cookingRecipe && (
+        <CookingMode
+          recipe={cookingRecipe}
+          onComplete={handleCookingComplete}
+          onCancel={handleCookingCancel}
+        />
+      )}
     </ProtectedRoute>
   );
 }

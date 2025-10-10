@@ -112,7 +112,6 @@ async function submitRating(event: APIGatewayEvent, userId: string): Promise<API
   });
 
   return successResponse({
-    success: true,
     rating: result.rating,
     average_rating: result.average_rating,
     rating_count: result.rating_count,

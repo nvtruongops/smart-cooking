@@ -25,6 +25,7 @@ import {
 export class CookingSessionService {
   /**
    * Start a new cooking session
+   * FIX: Store complete recipe details for history display
    */
   static async startCooking(userId: string, request: StartCookingRequest): Promise<CookingSession> {
     // Verify recipe exists
@@ -36,6 +37,7 @@ export class CookingSessionService {
     const sessionId = generateUUID();
     const now = formatTimestamp();
     
+    // FIX: Store complete recipe snapshot for history display
     const cookingSession: CookingSessionDynamoItem = {
       PK: `USER#${userId}`,
       SK: `SESSION#${now}#${sessionId}`,
@@ -48,6 +50,14 @@ export class CookingSessionService {
       user_id: userId,
       recipe_id: request.recipe_id,
       recipe_title: request.recipe_title || recipe.title,
+      // FIX: Add recipe details for history display
+      recipe_ingredients: recipe.ingredients || [],
+      recipe_instructions: recipe.instructions || [],
+      recipe_cooking_method: recipe.cooking_method,
+      recipe_cuisine: recipe.cuisine,
+      recipe_prep_time_minutes: recipe.prep_time_minutes,
+      recipe_cook_time_minutes: recipe.cook_time_minutes,
+      recipe_image_url: recipe.image_url,
       status: 'cooking',
       started_at: now,
       created_at: now,
@@ -56,10 +66,12 @@ export class CookingSessionService {
 
     await DynamoDBHelper.put(cookingSession);
 
-    logStructured('INFO', 'Cooking session started', {
+    logStructured('INFO', 'Cooking session started with recipe details', {
       userId,
       sessionId,
-      recipeId: request.recipe_id
+      recipeId: request.recipe_id,
+      recipeTitle: recipe.title,
+      ingredientCount: recipe.ingredients?.length || 0
     });
 
     return this.transformToSession(cookingSession);
@@ -396,6 +408,37 @@ export class CookingSessionService {
   }
 
   /**
+   * Delete a cooking session
+   */
+  static async deleteCookingSession(userId: string, sessionId: string): Promise<void> {
+    logStructured('INFO', 'Attempting to delete cooking session', {
+      userId,
+      sessionId
+    });
+
+    const session = await this.getSessionById(sessionId);
+    
+    logStructured('INFO', 'Session found', {
+      sessionUserId: session.user_id,
+      requestUserId: userId,
+      sessionPK: session.PK,
+      sessionSK: session.SK
+    });
+    
+    if (session.user_id !== userId) {
+      throw new AppError(403, 'unauthorized', 'You can only delete your own cooking sessions');
+    }
+
+    // Delete from DynamoDB
+    await DynamoDBHelper.delete(session.PK, session.SK);
+
+    logStructured('INFO', 'Cooking session deleted', {
+      userId,
+      sessionId
+    });
+  }
+
+  /**
    * Get user's favorite recipes
    */
   static async getFavorites(userId: string, request: GetFavoritesRequest): Promise<GetFavoritesResponse> {
@@ -452,6 +495,7 @@ export class CookingSessionService {
 
   /**
    * Transform DynamoDB item to CookingSession object
+   * FIX: Include recipe details for history display
    */
   private static transformToSession(item: any): CookingSession {
     return {
@@ -459,6 +503,14 @@ export class CookingSessionService {
       user_id: item.user_id,
       recipe_id: item.recipe_id,
       recipe_title: item.recipe_title,
+      // FIX: Include recipe details
+      recipe_ingredients: item.recipe_ingredients,
+      recipe_instructions: item.recipe_instructions,
+      recipe_cooking_method: item.recipe_cooking_method,
+      recipe_cuisine: item.recipe_cuisine,
+      recipe_prep_time_minutes: item.recipe_prep_time_minutes,
+      recipe_cook_time_minutes: item.recipe_cook_time_minutes,
+      recipe_image_url: item.recipe_image_url,
       status: item.status,
       started_at: item.started_at,
       completed_at: item.completed_at,

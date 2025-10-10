@@ -20,9 +20,23 @@ export async function handler(event: APIGatewayEvent): Promise<APIResponse> {
   logger.logFunctionStart('posts', event);
 
   try {
-    const userId = getUserIdFromEvent(event);
     const method = event.httpMethod;
     const path = event.path;
+
+    // Handle OPTIONS preflight requests for CORS
+    if (method === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        },
+        body: '',
+      };
+    }
+
+    const userId = getUserIdFromEvent(event);
 
     // Set X-Ray user context
     tracer.setUser(userId);
@@ -35,11 +49,15 @@ export async function handler(event: APIGatewayEvent): Promise<APIResponse> {
     });
 
     // Route requests based on HTTP method and path
-    if (method === 'POST' && path === '/posts') {
+    if (method === 'POST' && (path === '/posts' || path === '/v1/posts')) {
       return await createPost(userId, event.body);
     }
 
-    if (method === 'GET' && path === '/posts/feed') {
+    if (method === 'POST' && (path === '/posts/upload-urls' || path === '/v1/posts/upload-urls')) {
+      return await generateUploadUrls(userId, event.body);
+    }
+
+    if (method === 'GET' && (path === '/posts/feed' || path === '/v1/posts/feed')) {
       return await getFeed(userId, event.queryStringParameters);
     }
 
@@ -351,4 +369,66 @@ async function deleteReaction(userId: string, reactionId: string): Promise<APIRe
   metrics.trackApiRequest(200, Date.now(), 'posts');
 
   return successResponse({ message: 'Reaction deleted successfully' });
+}
+
+/**
+ * Generate presigned URLs for uploading post images
+ */
+async function generateUploadUrls(userId: string, body: string | null): Promise<APIResponse> {
+  if (!body) {
+    throw new AppError(400, 'missing_body', 'Request body is required');
+  }
+
+  const request = JSON.parse(body);
+
+  // Validate request
+  if (!request.post_id) {
+    throw new AppError(400, 'missing_post_id', 'Post ID is required');
+  }
+
+  if (!request.images || !Array.isArray(request.images) || request.images.length === 0) {
+    throw new AppError(400, 'invalid_images', 'Images array is required (1-10 images)');
+  }
+
+  if (request.images.length > 10) {
+    throw new AppError(400, 'too_many_images', 'Maximum 10 images allowed per post');
+  }
+
+  // Validate each image request
+  for (let i = 0; i < request.images.length; i++) {
+    const img = request.images[i];
+    if (!img.file_type || !img.file_size) {
+      throw new AppError(400, 'invalid_image', `Image ${i + 1}: file_type and file_size are required`);
+    }
+  }
+
+  try {
+    const { generatePostPhotosPresignedUrls, getCloudFrontUrl } = await import('../shared/s3-service');
+    
+    const presignedUrls = await generatePostPhotosPresignedUrls(request.post_id, request.images);
+
+    // Convert keys to CloudFront URLs for the response
+    const imageUrls = presignedUrls.map(url => ({
+      upload_url: url.upload_url,
+      image_url: getCloudFrontUrl(url.key),
+      expires_in: url.expires_in
+    }));
+
+    metrics.trackApiRequest(200, Date.now(), 'posts');
+
+    logger.info('Upload URLs generated successfully', {
+      userId,
+      postId: request.post_id,
+      imageCount: imageUrls.length
+    });
+
+    return successResponse({
+      message: 'Upload URLs generated successfully',
+      upload_urls: imageUrls
+    });
+
+  } catch (error: any) {
+    logger.error('Failed to generate upload URLs', error);
+    throw new AppError(500, 'upload_url_failed', error.message || 'Failed to generate upload URLs');
+  }
 }

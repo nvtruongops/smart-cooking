@@ -8,7 +8,8 @@ export interface Post {
   recipe_id?: string;
   content: string;
   images?: string[];
-  is_public: boolean;
+  is_public: boolean; // Legacy field
+  privacy?: 'public' | 'friends' | 'private'; // New field
   likes_count: number;
   comments_count: number;
   created_at: string;
@@ -19,7 +20,8 @@ export interface CreatePostRequest {
   content: string;
   images?: string[];
   recipe_id?: string;
-  is_public?: boolean;
+  is_public?: boolean; // Legacy field
+  privacy?: 'public' | 'friends' | 'private'; // New field
 }
 
 export interface UpdatePostRequest {
@@ -85,7 +87,7 @@ export interface CommentResponse {
     user_id: string;
     username: string;
     full_name?: string;
-    avatar_url?: string;
+    user_avatar?: string; // Changed from avatar_url for frontend consistency
   };
   replies?: CommentResponse[]; // Nested replies
 }

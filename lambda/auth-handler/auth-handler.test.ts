@@ -78,12 +78,41 @@ const mockEvent: Partial<APIGatewayEvent> = {
 // Get mocked modules
 const cognitoMock = jest.mocked(require('@aws-sdk/client-cognito-identity-provider'));
 const dynamoMock = jest.mocked(require('../shared/dynamodb'));
+const responsesMock = jest.mocked(require('../shared/responses'));
 
 describe('Auth Handler', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Setup default mock responses
+    // Restore response mocks after clearAllMocks
+    responsesMock.successResponse.mockImplementation((data: any, status: number = 200) => ({
+      statusCode: status,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }));
+
+    responsesMock.errorResponse.mockImplementation((status: number, error: string, message: string) => ({
+      statusCode: status,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error, message })
+    }));
+
+    responsesMock.handleError.mockImplementation((error: any) => {
+      if (error.statusCode) {
+        return {
+          statusCode: error.statusCode,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: error.errorCode || error.name, message: error.message })
+        };
+      }
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal_error', message: error.message || 'An unexpected error occurred' })
+      };
+    });
+
+    // Restore Cognito mock implementation after clearAllMocks
     cognitoMock.__mockSend.mockImplementation((command: { type: string; params?: any }) => {
       if (command.type === 'SignUpCommand') {
         return Promise.resolve({
@@ -118,6 +147,15 @@ describe('Auth Handler', () => {
       return Promise.resolve({});
     });
 
+    // Restore AWS Command class mocks after clearAllMocks
+    const { SignUpCommand, InitiateAuthCommand, ConfirmSignUpCommand, ForgotPasswordCommand, ConfirmForgotPasswordCommand, ChangePasswordCommand } = cognitoMock;
+    SignUpCommand.mockImplementation((params: any) => ({ type: 'SignUpCommand', params }));
+    InitiateAuthCommand.mockImplementation((params: any) => ({ type: 'InitiateAuthCommand', params }));
+    ConfirmSignUpCommand.mockImplementation((params: any) => ({ type: 'ConfirmSignUpCommand', params }));
+    ForgotPasswordCommand.mockImplementation((params: any) => ({ type: 'ForgotPasswordCommand', params }));
+    ConfirmForgotPasswordCommand.mockImplementation((params: any) => ({ type: 'ConfirmForgotPasswordCommand', params }));
+    ChangePasswordCommand.mockImplementation((params: any) => ({ type: 'ChangePasswordCommand', params }));
+
     // Setup DynamoDB mocks
     dynamoMock.DynamoDBHelper.getUserProfile.mockResolvedValue({
       user_id: 'test-user',
@@ -127,6 +165,8 @@ describe('Auth Handler', () => {
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z'
     });
+    
+    dynamoMock.DynamoDBHelper.put.mockResolvedValue({});
   });
 
   describe('Registration Flow', () => {

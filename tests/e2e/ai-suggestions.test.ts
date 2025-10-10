@@ -109,8 +109,8 @@ describe('E2E: AI Suggestion Validation', () => {
     const correctedResults = result.validation_results?.filter((r: any) => r.corrected_name);
     expect(correctedResults?.length).toBeGreaterThan(0);
   }, TIMEOUTS.AI_GENERATION);
-}  test('AI 
-Suggestions with Large Ingredient List', async () => {
+
+  test('AI Suggestions with Large Ingredient List', async () => {
     const largeIngredientList = [
       ...TEST_INGREDIENTS.VALID,
       'bánh phở', 'gừng', 'hành lá', 'rau thơm', 'ớt', 'chanh'

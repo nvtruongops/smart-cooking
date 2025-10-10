@@ -1,6 +1,10 @@
 import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { logStructured } from './monitoring-setup';
+
+// Use console.log instead of log to avoid dependency issues
+const log = (level: string, message: string, data?: any) => {
+  console.log(JSON.stringify({ level, message, ...data, timestamp: new Date().toISOString() }));
+};
 
 /**
  * DynamoDB-based caching service for Smart Cooking MVP
@@ -33,18 +37,18 @@ export class CacheService {
         
         // Check TTL (additional check beyond DynamoDB TTL)
         if (item.expires_at && new Date(item.expires_at) < new Date()) {
-          logStructured('DEBUG', 'Cache item expired', { key });
+          log('DEBUG', 'Cache item expired', { key });
           return null;
         }
         
-        logStructured('DEBUG', 'Cache hit', { key, dataSize: JSON.stringify(item.data).length });
+        log('DEBUG', 'Cache hit', { key, dataSize: JSON.stringify(item.data).length });
         return item.data;
       }
       
-      logStructured('DEBUG', 'Cache miss', { key });
+      log('DEBUG', 'Cache miss', { key });
       return null;
     } catch (error) {
-      logStructured('ERROR', 'Cache get error', { key, error: error.message });
+      log('ERROR', 'Cache get error', { key, error: error instanceof Error ? error.message : String(error) });
       return null; // Fail gracefully
     }
   }
@@ -72,13 +76,13 @@ export class CacheService {
         })
       }));
 
-      logStructured('DEBUG', 'Cache set', { 
+      log('DEBUG', 'Cache set', { 
         key, 
         ttlSeconds, 
         dataSize: JSON.stringify(data).length 
       });
     } catch (error) {
-      logStructured('ERROR', 'Cache set error', { key, error: error.message });
+      log('ERROR', 'Cache set error', { key, error: error instanceof Error ? error.message : String(error) });
       // Fail gracefully - don't break the main operation
     }
   }
@@ -110,9 +114,9 @@ export class CacheService {
         })
       }));
 
-      logStructured('DEBUG', 'Cache delete', { key });
+      log('DEBUG', 'Cache delete', { key });
     } catch (error) {
-      logStructured('ERROR', 'Cache delete error', { key, error: error.message });
+      log('ERROR', 'Cache delete error', { key, error: error instanceof Error ? error.message : String(error) });
     }
   }
 

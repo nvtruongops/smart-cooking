@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Recipe, getCookingMethodLabel, getCookingMethodColor, formatTime, getTotalTime } from '@/types/recipe';
 
 interface RecipeCardProps {

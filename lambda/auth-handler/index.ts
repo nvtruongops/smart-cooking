@@ -170,15 +170,22 @@ async function handleLogin(body: any): Promise<APIResponse> {
   const { username, password } = body;
 
   if (!username || !password) {
-    throw new AppError(400, 'missing_credentials', 'Username and password are required');
+    throw new AppError(400, 'missing_credentials', 'Email and password are required');
   }
 
   try {
+    const loginEmail = sanitizeInput(username, 100);
+
+    // Validate email format
+    if (!validateEmail(loginEmail)) {
+      throw new AppError(400, 'invalid_email', 'Please provide a valid email address');
+    }
+
     const authCommand = new InitiateAuthCommand({
       ClientId: USER_POOL_CLIENT_ID,
       AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
       AuthParameters: {
-        USERNAME: sanitizeInput(username, 50),
+        USERNAME: loginEmail,
         PASSWORD: password
       }
     });

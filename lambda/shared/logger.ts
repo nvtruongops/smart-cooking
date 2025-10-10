@@ -97,8 +97,18 @@ class Logger {
       ...metadata
     };
 
-    // Use console methods based on level
-    const output = JSON.stringify(logEntry);
+    // Use console methods based on level with circular reference handling
+    const seen = new WeakSet();
+    const output = JSON.stringify(logEntry, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        // Handle circular references
+        if (seen.has(value)) {
+          return '[Circular Reference]';
+        }
+        seen.add(value);
+      }
+      return value;
+    });
     switch (level) {
       case LogLevel.ERROR:
         console.error(output);

@@ -5,12 +5,23 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import StarRating from '@/components/StarRating';
 import ShareCookingSession from '@/components/cooking/ShareCookingSession';
+import { Toast, ConfirmDialog } from '@/components/ui';
 import { CookingHistoryWithRecipe } from '@/types/cooking';
 import { getStatusLabel, getStatusColor, formatDate } from '@/types/cooking';
 import { formatTime, getTotalTime } from '@/types/recipe';
 import { getCookingHistory, toggleFavorite } from '@/services/cookingService';
 
 type FilterType = 'all' | 'completed' | 'cooking' | 'favorites';
+
+interface ToastMessage {
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
+interface DeleteConfirm {
+  sessionId: string;
+  recipeName: string;
+}
 
 function HistoryPageContent() {
   const router = useRouter();
@@ -21,6 +32,8 @@ function HistoryPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
 
   useEffect(() => {
     if (searchParams.get('success') === 'rating_submitted') {
@@ -29,24 +42,25 @@ function HistoryPageContent() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
       const data = await getCookingHistory();
+      console.log('[History] Loaded cooking history:', data);
       setHistory(data);
     } catch (err) {
-      console.error('Failed to load cooking history:', err);
+      console.error('[History] Failed to load cooking history:', err);
       setError(err instanceof Error ? err.message : 'Không thể tải lịch sử nấu ăn');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const applyFilter = useCallback(() => {
     let filtered = [...history];
@@ -93,6 +107,35 @@ function HistoryPageContent() {
     }
   };
 
+  const handleDeleteClick = (sessionId: string, recipeName: string) => {
+    setDeleteConfirm({ sessionId, recipeName });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return;
+
+    try {
+      const { deleteCookingSession } = await import('@/services/cookingService');
+      await deleteCookingSession(deleteConfirm.sessionId);
+
+      // Remove from local state
+      setHistory(prevHistory =>
+        prevHistory.filter(h => h.session_id !== deleteConfirm.sessionId)
+      );
+
+      setToast({ message: 'Đã xóa lịch sử thành công!', type: 'success' });
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+      setToast({ message: 'Không thể xóa lịch sử. Vui lòng thử lại.', type: 'error' });
+    } finally {
+      setDeleteConfirm(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirm(null);
+  };
+
   const handleRecipeClick = (historyItem: CookingHistoryWithRecipe) => {
     if (!historyItem.recipe) return;
 
@@ -121,6 +164,28 @@ function HistoryPageContent() {
 
   return (
     <ProtectedRoute>
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm && (
+        <ConfirmDialog
+          title="Xác nhận xóa"
+          message={`Bạn có chắc muốn xóa lịch sử nấu "${deleteConfirm.recipeName}"?`}
+          confirmText="Xóa"
+          cancelText="Hủy"
+          type="danger"
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+        />
+      )}
+
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
         <nav className="bg-white shadow-sm">
@@ -326,20 +391,34 @@ function HistoryPageContent() {
                             )}
                           </div>
 
-                          {/* Favorite Button */}
-                          <button
-                            onClick={() => handleToggleFavorite(item.history_id, item.is_favorite || false)}
-                            className={`ml-4 p-2 rounded-full transition-colors ${
-                              item.is_favorite
-                                ? 'text-red-500 hover:bg-red-50'
-                                : 'text-gray-400 hover:bg-gray-100 hover:text-red-500'
-                            }`}
-                            title={item.is_favorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
-                          >
-                            <svg className="h-6 w-6" fill={item.is_favorite ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                            </svg>
-                          </button>
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 ml-4">
+                            {/* Favorite Button */}
+                            <button
+                              onClick={() => handleToggleFavorite(item.session_id || item.history_id || '', item.is_favorite || false)}
+                              className={`p-2 rounded-full transition-colors ${
+                                item.is_favorite
+                                  ? 'text-red-500 hover:bg-red-50'
+                                  : 'text-gray-400 hover:bg-gray-100 hover:text-red-500'
+                              }`}
+                              title={item.is_favorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
+                            >
+                              <svg className="h-6 w-6" fill={item.is_favorite ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                              </svg>
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              onClick={() => handleDeleteClick(item.session_id || item.history_id || '', item.recipe?.title || 'món ăn này')}
+                              className="p-2 rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                              title="Xóa lịch sử"
+                            >
+                              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
 
                         {/* Action Buttons */}
@@ -362,7 +441,7 @@ function HistoryPageContent() {
                         {item.status === 'completed' && item.recipe && (
                           <div className="mt-4 pt-4 border-t">
                             <ShareCookingSession
-                              sessionId={item.history_id}
+                              sessionId={item.session_id || item.history_id || ''}
                               recipeId={item.recipe.recipe_id}
                               recipeTitle={item.recipe.title}
                               rating={item.personal_rating}

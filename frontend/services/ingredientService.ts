@@ -1,4 +1,5 @@
-import { API_BASE_URL } from '@/config/api';
+import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+import { getAuthHeaders } from '@/lib/apiHelpers';
 
 export interface IngredientSearchResult {
   ingredient_id: string;
@@ -219,14 +220,11 @@ function normalizeVietnamese(text: string): string {
 export async function getAISuggestions(
   request: AISuggestionRequest
 ): Promise<AISuggestionResponse> {
-  const token = localStorage.getItem('auth_token');
+  const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}/ai/suggest`, {
+  const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AI_SUGGESTIONS}`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify(request)
   });
 
@@ -242,14 +240,11 @@ export async function getAISuggestions(
  * Validate ingredients using the backend API
  */
 export async function validateIngredientsAPI(ingredients: string[]): Promise<ValidationResponse> {
-  const token = localStorage.getItem('auth_token');
+  const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}/ingredients/validate`, {
+  const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.INGREDIENT_VALIDATE}`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify({ ingredients })
   });
 

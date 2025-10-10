@@ -71,9 +71,9 @@ describe('Rating Lambda Handler', () => {
 
       expect(response.statusCode).toBe(201);
       expect(body.success).toBe(true);
-      expect(body.average_rating).toBe(4.5);
-      expect(body.rating_count).toBe(10);
-      expect(body.auto_approved).toBe(false);
+      expect(body.data.average_rating).toBe(4.5);
+      expect(body.data.rating_count).toBe(10);
+      expect(body.data.auto_approved).toBe(false);
       expect(mockRatingService.submitRating).toHaveBeenCalledWith({
         recipeId: 'recipe-123',
         userId: 'test-user-id',
@@ -113,10 +113,10 @@ describe('Rating Lambda Handler', () => {
       const body = JSON.parse(response.body);
 
       expect(response.statusCode).toBe(201);
-      expect(body.auto_approved).toBe(true);
-      expect(body.average_rating).toBe(4.2);
-      expect(body.rating_count).toBe(3);
-      expect(body.message).toContain('auto-approved');
+      expect(body.data.auto_approved).toBe(true);
+      expect(body.data.average_rating).toBe(4.2);
+      expect(body.data.rating_count).toBe(3);
+      expect(body.data.message).toContain('auto-approved');
     });
 
     it('should return 400 if rating is missing', async () => {
@@ -212,10 +212,10 @@ describe('Rating Lambda Handler', () => {
       const body = JSON.parse(response.body);
 
       expect(response.statusCode).toBe(200);
-      expect(body.recipe_id).toBe('recipe-123');
-      expect(body.average_rating).toBe(4.5);
-      expect(body.rating_count).toBe(10);
-      expect(body.ratings).toHaveLength(2);
+      expect(body.data.recipe_id).toBe('recipe-123');
+      expect(body.data.average_rating).toBe(4.5);
+      expect(body.data.rating_count).toBe(10);
+      expect(body.data.ratings).toHaveLength(2);
       expect(mockRatingService.getRecipeRatings).toHaveBeenCalledWith('recipe-123', 20, undefined);
     });
 
@@ -243,7 +243,7 @@ describe('Rating Lambda Handler', () => {
       const body = JSON.parse(response.body);
 
       expect(response.statusCode).toBe(200);
-      expect(body.last_evaluated_key).toBe('encoded-key');
+      expect(body.data.last_evaluated_key).toBe('encoded-key');
       expect(mockRatingService.getRecipeRatings).toHaveBeenCalledWith('recipe-123', 10, 'start-key');
     });
 
@@ -288,8 +288,8 @@ describe('Rating Lambda Handler', () => {
       const body = JSON.parse(response.body);
 
       expect(response.statusCode).toBe(200);
-      expect(body.user_id).toBe('test-user-id');
-      expect(body.ratings).toHaveLength(1);
+      expect(body.data.user_id).toBe('test-user-id');
+      expect(body.data.ratings).toHaveLength(1);
       expect(mockRatingService.getUserRatings).toHaveBeenCalledWith('test-user-id', 20, undefined);
     });
   });

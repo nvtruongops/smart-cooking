@@ -1,36 +1,96 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import IngredientBatchValidator from '@/components/ingredients/IngredientBatchValidator';
+import HistoryDropdown from '@/components/ingredients/HistoryDropdown';
 
 export default function IngredientsPage() {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  
+  // Clear localStorage ONCE on mount (useEffect with empty deps)
+  useEffect(() => {
+    sessionStorage.removeItem('selected_ingredients');
+    localStorage.removeItem('batch_validation_ingredients');
+    localStorage.removeItem('ingredient_history'); // Clean old ingredient history
+  }, []); // Empty deps = run ONCE on mount
+
+  const saveToHistory = (ingredients: string[]) => {
+    try {
+      const history = localStorage.getItem('ingredient_history');
+      const existing = history ? JSON.parse(history) : [];
+      
+      const newEntry = {
+        ingredients,
+        timestamp: Date.now(),
+      };
+
+      // Remove duplicates and keep only last 10
+      const filtered = existing.filter((entry: { ingredients: string[]; timestamp: number }) => 
+        JSON.stringify(entry.ingredients.sort()) !== JSON.stringify(ingredients.sort())
+      );
+      
+      const updated = [newEntry, ...filtered].slice(0, 10);
+      localStorage.setItem('ingredient_history', JSON.stringify(updated));
+    } catch (error) {
+      console.error('Failed to save history:', error);
+    }
+  };
+
+  const handleSelectHistory = (recipeName: string, recipeId: string) => {
+    console.log('📜 History selected - Recipe:', recipeName, 'ID:', recipeId);
+    // Navigate to recipe detail page or load recipe for cooking
+    // For now, just show alert
+    alert(`Bạn chọn món: ${recipeName}\n\nChức năng này sẽ mở trang chi tiết món ăn.`);
+    
+    // TODO: Implement navigation to recipe detail
+    // window.location.href = `/recipes/${recipeId}`;
+  };
 
   const handleIngredientsValidated = async (validIngredients: string[]) => {
+    // Prevent multiple calls
+    if (isNavigating) {
+      console.log('⚠️ Already navigating, ignoring duplicate call');
+      return;
+    }
+    
+    console.log('🔵 handleIngredientsValidated called with:', validIngredients);
+    
     if (validIngredients.length === 0) {
+      console.log('❌ No ingredients selected');
       alert('Vui lòng thêm ít nhất một nguyên liệu hợp lệ');
       return;
     }
 
     if (validIngredients.length > 5) {
+      console.log('❌ Too many ingredients:', validIngredients.length);
       alert('Bạn chỉ có thể chọn tối đa 5 nguyên liệu');
       return;
     }
 
+    console.log('✅ Valid ingredients count:', validIngredients.length);
     setIsLoading(true);
+    setIsNavigating(true);
 
     try {
+      // Save to history
+      saveToHistory(validIngredients);
+      
       // Store ingredients in sessionStorage to pass to AI suggestions page
+      console.log('💾 Saving to sessionStorage...');
       sessionStorage.setItem('selected_ingredients', JSON.stringify(validIngredients));
+      console.log('✅ Saved successfully');
 
       // Navigate to AI suggestions page
-      router.push('/ai-suggestions');
+      console.log('🔀 Navigating to /ai-suggestions...');
+      
+      // Use window.location instead of router.push for more reliable navigation
+      window.location.href = '/ai-suggestions';
     } catch (error) {
-      console.error('Error:', error);
+      console.error('❌ Error:', error);
       alert('Có lỗi xảy ra. Vui lòng thử lại.');
+      setIsNavigating(false);
     } finally {
       setIsLoading(false);
     }
@@ -66,8 +126,22 @@ export default function IngredientsPage() {
           </div>
         </nav>
 
-        {/* Main content */}
-        <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Main content with sidebar */}
+        <div className="flex max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          {/* Left Sidebar */}
+          <aside className="w-64 flex-shrink-0 mr-8">
+            <div className="bg-white rounded-lg shadow-md p-4 sticky top-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Menu</h2>
+              
+              {/* History Dropdown in Sidebar */}
+              <div className="space-y-2">
+                <HistoryDropdown onSelectHistory={handleSelectHistory} />
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1">
           {/* Page header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Chọn nguyên liệu</h1>
@@ -111,7 +185,9 @@ export default function IngredientsPage() {
 
           {/* Ingredient input section */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <IngredientBatchValidator onValidated={handleIngredientsValidated} />
+            <IngredientBatchValidator 
+              onValidated={handleIngredientsValidated}
+            />
           </div>
 
           {/* Tips section */}
@@ -154,7 +230,8 @@ export default function IngredientsPage() {
               </div>
             </div>
           )}
-        </main>
+          </main>
+        </div>
       </div>
     </ProtectedRoute>
   );

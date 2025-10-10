@@ -66,7 +66,7 @@ export default function CookingSessionPage() {
     setIsCompleting(true);
     try {
       await completeCooking({
-        history_id: cookingSession.history_id
+        session_id: cookingSession.session_id
       });
 
       // Store session ID for rating page

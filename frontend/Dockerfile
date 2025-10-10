@@ -1,15 +1,16 @@
-# Multi-stage build for Next.js on AWS App Runner
-FROM node:20-alpine AS base
+# Multi-stage build for Next.js app
+FROM node:18-alpine AS base
 
-# Stage 1: Install dependencies
+# Install dependencies only when needed
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+# Copy package files
+COPY package.json package-lock.json* ./
+RUN npm ci
 
-# Stage 2: Build application
+# Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -19,9 +20,10 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Build Next.js app
 RUN npm run build
 
-# Stage 3: Production image
+# Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
 
@@ -31,10 +33,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy standalone output (standalone creates nested structure)
+# Copy built application
+COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 
@@ -43,5 +45,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Standalone output includes server.js in root
 CMD ["node", "server.js"]

@@ -2,6 +2,19 @@ import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPass
 import { DynamoDBClient, PutItemCommand, DeleteItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 
+// Fix for circular JSON reference in Jest
+const originalStringify = JSON.stringify;
+JSON.stringify = function(value, replacer, space) {
+  try {
+    return originalStringify(value, replacer, space);
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('circular')) {
+      return originalStringify('[Circular Reference Removed]');
+    }
+    throw error;
+  }
+};
+
 export interface TestConfig {
   apiUrl: string;
   userPoolId: string;

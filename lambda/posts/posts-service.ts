@@ -40,7 +40,10 @@ export class PostsService {
 
     const postId = generateUUID();
     const now = formatTimestamp();
-    const isPublic = request.is_public !== false; // Default to public
+    
+    // Handle both legacy is_public and new privacy field
+    const privacy = request.privacy || (request.is_public !== false ? 'public' : 'private');
+    const isPublic = privacy === 'public';
 
     // Determine GSI3PK based on post visibility
     const gsi3pk = isPublic ? 'FEED#PUBLIC' : `FEED#${userId}`;
@@ -52,6 +55,7 @@ export class PostsService {
       content: request.content.trim(),
       images: request.images || [],
       is_public: isPublic,
+      privacy,
       likes_count: 0,
       comments_count: 0,
       created_at: now,
@@ -270,7 +274,7 @@ export class PostsService {
         user_id: userId,
         username: profile.username,
         full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
+        user_avatar: profile.avatar_url, // Map to user_avatar for frontend consistency
       };
     } catch (error) {
       logger.error('Failed to get user info', error, { userId });
@@ -352,6 +356,19 @@ export class PostsService {
       });
 
       let allPosts = publicPostsResult.Items || [];
+
+      // Always include user's own posts
+      const ownPostsResult = await DynamoDBHelper.query({
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': `USER#${userId}`,
+        },
+        ScanIndexForward: false,
+        Limit: 10, // Get user's recent posts
+      });
+      
+      allPosts = [...allPosts, ...(ownPostsResult.Items || [])];
 
       // If user has friends, also query their posts
       if (friendIds.length > 0) {

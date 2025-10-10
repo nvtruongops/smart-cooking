@@ -11,24 +11,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getFeed, deletePost, Post } from '@/services/posts';
 import CreatePostForm from '@/components/posts/CreatePostForm';
 import PostCard from '@/components/posts/PostCard';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Navigation from '@/components/Navigation';
 
-export default function FeedPage() {
+function FeedPageContent() {
   const router = useRouter();
   const { token, user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextToken, setNextToken] = useState<string | undefined>();
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
+    // Load feed on mount
     loadFeed();
-  }, [token, router]);
+  }, []);
 
   const loadFeed = async (isLoadMore = false) => {
     if (!token) return;
@@ -41,14 +39,20 @@ export default function FeedPage() {
       }
 
       const result = await getFeed(token, 20, isLoadMore ? nextToken : undefined);
+      
+      console.log('[Feed] API result:', result);
+      
+      // Handle response format - Lambda returns next_key, not nextToken
+      const postsData = result.posts || [];
+      const nextTokenData = result.next_key;
 
       if (isLoadMore) {
-        setPosts((prev) => [...prev, ...result.posts]);
+        setPosts((prev) => [...prev, ...postsData]);
       } else {
-        setPosts(result.posts);
+        setPosts(postsData);
       }
 
-      setNextToken(result.nextToken);
+      setNextToken(nextTokenData);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load feed');
@@ -80,23 +84,28 @@ export default function FeedPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <>
+        <Navigation />
+        <div className="min-h-screen bg-gray-50 py-8 px-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
+    <>
+      <Navigation />
+      <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto">
         {/* Page Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Feed</h1>
-          <p className="text-gray-600 mt-1">See what your friends are cooking</p>
+          <p className="text-gray-800 mt-1">See what your friends are cooking</p>
         </div>
 
         {/* Create Post Form */}
@@ -128,7 +137,7 @@ export default function FeedPage() {
               />
             </svg>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No posts yet</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-800 mb-4">
               Add friends to see their posts in your feed
             </p>
             <button
@@ -173,5 +182,15 @@ export default function FeedPage() {
         )}
       </div>
     </div>
+    </>
+  );
+}
+
+// Wrap with ProtectedRoute
+export default function FeedPage() {
+  return (
+    <ProtectedRoute>
+      <FeedPageContent />
+    </ProtectedRoute>
   );
 }

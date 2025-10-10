@@ -4,7 +4,7 @@
  */
 
 import { S3Client, PutObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
-import { AppError } from '../shared/responses';
+import { AppError } from '../../shared/responses';
 import { logStructured } from '../shared/utils';
 
 const s3Client = new S3Client({

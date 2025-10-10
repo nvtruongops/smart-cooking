@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { validateIngredients, ValidationWarning } from '@/services/ingredientService';
 import IngredientInput from './IngredientInput';
 import ValidationResults from './ValidationResults';
@@ -48,68 +48,44 @@ export default function IngredientBatchValidator({
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
   }, [ingredients]);
 
-  // Load from localStorage with validation state
+  // Load from localStorage with validation state - ONLY ONCE on mount
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   useEffect(() => {
+    // Only run once on mount
+    if (isInitialized) return;
+    
     if (initialIngredients.length > 0) {
+      console.log('📦 Loading initial ingredients:', initialIngredients);
       setIngredients(initialIngredients.map(name => ({
         name,
         status: 'pending'
       })));
-    } else {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          
-          // Handle both old format (array of strings) and new format (object with ingredients array)
-          if (Array.isArray(parsed)) {
-            // Old format - convert to new format
-            setIngredients(parsed.map((name: string) => ({
-              name,
-              status: 'pending' as const
-            })));
-          } else if (parsed.ingredients && Array.isArray(parsed.ingredients)) {
-            // New format - restore with validation state
-            const now = Date.now();
-            const savedTime = parsed.timestamp || 0;
-            const isRecent = (now - savedTime) < 24 * 60 * 60 * 1000; // 24 hours
+    }
+    // DON'T load from localStorage - parent clears it on mount anyway
+    // Just start with empty state
+    
+    setIsInitialized(true);
+  }, []); // Empty dependency - only run once!
 
-            interface SavedIngredient {
-              name: string;
-              status?: string;
-              validated?: string;
-              warning?: ValidationWarning;
-            }
-
-            setIngredients(parsed.ingredients.map((item: SavedIngredient) => ({
-              name: item.name,
-              status: isRecent ? (item.status as IngredientState['status'] || 'pending') : 'pending',
-              validated: isRecent ? item.validated : undefined,
-              warning: isRecent ? item.warning : undefined
-            })));
-          }
-        } catch (error) {
-          console.error('Failed to load saved ingredients:', error);
-        }
+  const handleAddIngredient = useCallback((name: string, validation?: { valid: boolean; warning?: ValidationWarning }) => {
+    // Accept ALL ingredients regardless of validation - AI will handle interpretation
+    // Check duplicate INSIDE setState callback to avoid stale state
+    setIngredients(prev => {
+      // Check if ingredient already exists (use fresh prev state)
+      if (prev.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+        return prev; // Return unchanged state - duplicate blocked
       }
-    }
-  }, [initialIngredients]);
-
-  const handleAddIngredient = (name: string, validation?: { valid: boolean; warning?: ValidationWarning }) => {
-    // Check if ingredient already exists
-    if (ingredients.some(i => i.name.toLowerCase() === name.toLowerCase())) {
-      return;
-    }
-
-    // NEW STRATEGY: Accept ALL ingredients regardless of validation
-    // AI will handle interpretation, so we don't need to check status
-    setIngredients(prev => [...prev, { 
-      name, 
-      status: 'pending', // Always pending - AI will handle it
-      validated: name,
-      realTimeValidation: validation
-    }]);
-  };
+      
+      const newState: IngredientState[] = [...prev, { 
+        name, 
+        status: 'pending' as const, // Always pending - AI will handle it
+        validated: name,
+        realTimeValidation: validation
+      }];
+      return newState;
+    });
+  }, []); // Empty deps - function never changes
 
   const handleRemoveIngredient = (name: string) => {
     setIngredients(prev => prev.filter(i => i.name !== name));

@@ -119,8 +119,8 @@ describe('E2E: Auto-Approval System', () => {
     expect(finalRecipe.average_rating).toBeGreaterThanOrEqual(AUTO_APPROVAL_THRESHOLD);
     expect(finalRecipe.rating_count).toBeGreaterThanOrEqual(MIN_RATINGS_FOR_APPROVAL);
   }, TIMEOUTS.DATABASE_OPERATION * 4);
-}  test
-('Recipe NOT Auto-Approved with Low Ratings', async () => {
+
+  test('Recipe NOT Auto-Approved with Low Ratings', async () => {
     // Create a new test recipe for this scenario
     const testRecipeId = 'test-recipe-low-ratings';
     

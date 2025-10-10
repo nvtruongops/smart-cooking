@@ -1,0 +1,14 @@
+{
+  "SmartCooking-dev-Simple": {
+    "CostOptimizationCostMetricsNamespaceA5AFF362": "SmartCooking/Cost",
+    "UserPoolClientId": "6pnddjht1g8n95rtufkemj4i8h",
+    "ApiUrl": "https://t7jsx5rea0.execute-api.ap-southeast-1.amazonaws.com/dev/",
+    "UserPoolId": "ap-southeast-1_NMNtUVsl7",
+    "WebsiteUrl": "https://d2o9m048qjl0kq.cloudfront.net",
+    "CloudFrontDistributionId": "E3HPSI3IR9Y342",
+    "DynamoDBTableName": "smart-cooking-data-dev",
+    "S3BucketName": "smart-cooking-frontend-dev-156172784433",
+    "S3ImagesBucketName": "smart-cooking-images-dev-156172784433",
+    "SmartCookingApiEndpoint5178DBAE": "https://t7jsx5rea0.execute-api.ap-southeast-1.amazonaws.com/dev/"
+  }
+}

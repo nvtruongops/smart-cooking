@@ -31,9 +31,23 @@ export async function handler(event: APIGatewayEvent): Promise<APIResponse> {
     logger.logFunctionStart('cooking-session', event);
 
     try {
-        const userId = getUserIdFromEvent(event);
         const method = event.httpMethod;
         const path = event.path;
+
+        // Handle OPTIONS preflight requests for CORS
+        if (method === 'OPTIONS') {
+            return {
+                statusCode: 200,
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                },
+                body: '',
+            };
+        }
+
+        const userId = getUserIdFromEvent(event);
 
         // Set X-Ray user context
         tracer.setUser(userId);
@@ -46,12 +60,38 @@ export async function handler(event: APIGatewayEvent): Promise<APIResponse> {
         });
 
         // Route requests based on HTTP method and path
-        if (method === 'POST' && path.includes('/cooking/start')) {
+        // FIX: Support both /cooking/start and /cooking/sessions endpoints
+        if (method === 'POST' && (path.includes('/cooking/start') || path.includes('/cooking/sessions'))) {
             return await startCooking(userId, event.body);
         }
 
         if (method === 'PUT' && path.includes('/cooking/complete')) {
             return await completeCooking(userId, event.body);
+        }
+
+        // PUT /v1/cooking/sessions/{sessionId} - Update session (complete or update status)
+        if (method === 'PUT' && path.includes('/cooking/sessions/')) {
+            const sessionId = event.pathParameters?.sessionId;
+            if (!sessionId) {
+                return errorResponse(400, 'missing_session_id', 'Session ID is required');
+            }
+            
+            // Parse body to determine if it's complete or status update
+            const requestBody = JSON.parse(event.body || '{}');
+            if (requestBody.status === 'completed') {
+                // Complete cooking session
+                return await completeCooking(userId, JSON.stringify({
+                    session_id: sessionId,
+                    rating: requestBody.rating,
+                    review: requestBody.review
+                }));
+            } else {
+                // Update status
+                return await updateCookingStatus(userId, JSON.stringify({
+                    session_id: sessionId,
+                    status: requestBody.status
+                }));
+            }
         }
 
         if (method === 'PUT' && path.includes('/cooking/status')) {
@@ -69,6 +109,21 @@ export async function handler(event: APIGatewayEvent): Promise<APIResponse> {
 
         if (method === 'GET' && path.includes('/cooking/stats')) {
             return await getCookingStats(userId);
+        }
+
+        // DELETE /v1/cooking/sessions/{sessionId} - Delete session
+        if (method === 'DELETE' && path.includes('/cooking/sessions/')) {
+            const sessionId = event.pathParameters?.sessionId;
+            logger.info('DELETE session request', {
+                sessionId,
+                pathParameters: event.pathParameters,
+                path: event.path
+            });
+            
+            if (!sessionId || sessionId.trim() === '') {
+                return errorResponse(400, 'missing_session_id', 'Session ID is required');
+            }
+            return await deleteCookingSession(userId, sessionId);
         }
 
         if (method === 'POST' && path.includes('/favorites/toggle')) {
@@ -245,6 +300,21 @@ async function toggleFavorite(userId: string, body: string | null): Promise<APIR
 
     const result = await CookingSessionService.toggleFavorite(userId, request);
     return successResponse(result);
+}
+
+/**
+ * Delete a cooking session
+ */
+async function deleteCookingSession(userId: string, sessionId: string): Promise<APIResponse> {
+    try {
+        await CookingSessionService.deleteCookingSession(userId, sessionId);
+        return successResponse({ message: 'Cooking session deleted successfully' });
+    } catch (error) {
+        if (error instanceof AppError) {
+            return errorResponse(error.statusCode, error.code, error.message);
+        }
+        throw error;
+    }
 }
 
 /**

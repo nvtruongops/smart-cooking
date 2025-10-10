@@ -2,6 +2,7 @@ import { APIGatewayEvent, APIResponse, UserProfile, UserPreferences, PrivacySett
 import { successResponse, errorResponse, handleError, AppError } from '../shared/responses';
 import { DynamoDBHelper } from '../shared/dynamodb';
 import { AvatarService } from '../shared/avatar-service';
+import * as S3Service from '../shared/s3-service';
 import {
   sanitizeInput,
   formatTimestamp,
@@ -30,6 +31,8 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
 
   try {
     const { httpMethod, pathParameters } = event;
+
+    // Require authentication for all endpoints
     const userId = getUserIdFromEvent(event);
 
     // Set X-Ray user context
@@ -44,6 +47,10 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
 
     switch (httpMethod) {
       case 'GET':
+        // Handle /v1/users/me/stats
+        if (event.path.includes('/users/me/stats')) {
+          return await getUserStats(userId);
+        }
         if (pathParameters?.type === 'preferences') {
           const targetUserId = event.queryStringParameters?.userId || userId;
           return await getPreferences(userId, targetUserId);
@@ -70,6 +77,10 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
         if (pathParameters?.type === 'avatar') {
           return await uploadAvatar(userId, event.body);
         }
+        // Generate presigned URL for avatar upload
+        if (event.path.includes('/avatar/presigned')) {
+          return await generateAvatarPresignedUrl(userId, event.body);
+        }
         return await createProfile(userId, event.body);
 
       default:
@@ -89,6 +100,60 @@ export const handler = async (event: APIGatewayEvent): Promise<APIResponse> => {
     await metrics.flush();
   }
 };
+
+/**
+ * Get user statistics (friends, posts, recipes)
+ * GET /v1/users/me/stats
+ */
+async function getUserStats(userId: string): Promise<APIResponse> {
+  try {
+    logStructured('INFO', 'Fetching user stats', { userId });
+
+    // Count friends using GSI3
+    const friendsResult = await DynamoDBHelper.query({
+      KeyConditionExpression: 'GSI3PK = :pk',
+      ExpressionAttributeValues: { ':pk': `USER#${userId}` },
+      IndexName: 'GSI3'
+    });
+    const friendCount = friendsResult.Count || 0;
+
+    // Count posts using GSI1
+    const postsResult = await DynamoDBHelper.query({
+      KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
+      ExpressionAttributeValues: { 
+        ':pk': `USER#${userId}`,
+        ':sk': 'POST#'
+      },
+      IndexName: 'GSI1'
+    });
+    const postCount = postsResult.Count || 0;
+
+    // Count recipes using GSI1
+    const recipesResult = await DynamoDBHelper.query({
+      KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
+      ExpressionAttributeValues: { 
+        ':pk': `USER#${userId}`,
+        ':sk': 'RECIPE#'
+      },
+      IndexName: 'GSI1'
+    });
+    const recipeCount = recipesResult.Count || 0;
+
+    logStructured('INFO', 'User stats retrieved', { userId, friendCount, postCount, recipeCount });
+
+    return successResponse({
+      stats: {
+        friend_count: friendCount,
+        post_count: postCount,
+        recipe_count: recipeCount
+      }
+    });
+
+  } catch (error: any) {
+    logStructured('ERROR', 'Get user stats failed', { error: error.message, userId });
+    throw error;
+  }
+}
 
 async function getProfile(viewerId: string, targetUserId: string): Promise<APIResponse> {
   try {
@@ -118,6 +183,10 @@ async function getProfile(viewerId: string, targetUserId: string): Promise<APIRe
 
   } catch (error: any) {
     logStructured('ERROR', 'Get profile failed', { error: error.message, viewerId, targetUserId });
+    // Convert DatabaseError to 404 if resource not found
+    if (error.name === 'DatabaseError' && error.message.includes('not found')) {
+      throw new AppError(404, 'profile_not_found', 'User profile not found');
+    }
     throw error;
   }
 }
@@ -128,7 +197,7 @@ async function updateProfile(userId: string, body: string | null): Promise<APIRe
   }
 
   const data = parseJSON(body);
-  const { full_name, date_of_birth, gender, country, avatar_url } = data;
+  const { full_name, date_of_birth, gender, country, avatar_url, bio } = data;
 
   // Validate inputs
   const updates: any = {};
@@ -138,6 +207,16 @@ async function updateProfile(userId: string, body: string | null): Promise<APIRe
       throw new AppError(400, 'invalid_full_name', 'Full name must be a non-empty string');
     }
     updates.full_name = sanitizeInput(full_name, 100);
+  }
+
+  if (bio !== undefined) {
+    if (typeof bio !== 'string') {
+      throw new AppError(400, 'invalid_bio', 'Bio must be a string');
+    }
+    if (bio.length > 500) {
+      throw new AppError(400, 'bio_too_long', 'Bio must be 500 characters or less');
+    }
+    updates.bio = sanitizeInput(bio, 500);
   }
 
   if (date_of_birth !== undefined) {
@@ -230,18 +309,17 @@ async function createProfile(userId: string, body: string | null): Promise<APIRe
   }
 
   const data = parseJSON(body);
-  const { email, username, full_name, date_of_birth, gender, country, avatar_url } = data;
+  const { email, full_name, date_of_birth, gender, country, avatar_url } = data;
 
   // Validate required fields
-  if (!email || !username || !full_name) {
-    throw new AppError(400, 'missing_required_fields', 'Email, username, and full_name are required');
+  if (!email || !full_name) {
+    throw new AppError(400, 'missing_required_fields', 'Email and full_name are required');
   }
 
   // Validate inputs
   const profileData: any = {
     user_id: userId,
     email: sanitizeInput(email, 100),
-    username: sanitizeInput(username, 50),
     full_name: sanitizeInput(full_name, 100),
     created_at: formatTimestamp(),
     updated_at: formatTimestamp()
@@ -287,7 +365,7 @@ async function createProfile(userId: string, body: string | null): Promise<APIRe
       ...profileData
     });
 
-    logStructured('INFO', 'Profile created successfully', { userId, email, username });
+    logStructured('INFO', 'Profile created successfully', { userId, email });
 
     return successResponse({
       message: 'Profile created successfully',
@@ -467,6 +545,47 @@ async function updatePreferences(userId: string, body: string | null): Promise<A
     updates.spice_level = data.spice_level;
   }
 
+  // AI Personalization fields (Phase 1 - October 2025)
+  if (data.cooking_skill_level !== undefined) {
+    if (!['beginner', 'intermediate', 'expert'].includes(data.cooking_skill_level)) {
+      throw new AppError(400, 'invalid_cooking_skill_level', 'Cooking skill level must be beginner, intermediate, or expert');
+    }
+    updates.cooking_skill_level = data.cooking_skill_level;
+  }
+
+  if (data.max_cooking_time_minutes !== undefined) {
+    if (!Number.isInteger(data.max_cooking_time_minutes) || data.max_cooking_time_minutes < 15 || data.max_cooking_time_minutes > 240) {
+      throw new AppError(400, 'invalid_max_cooking_time', 'Max cooking time must be between 15 and 240 minutes');
+    }
+    updates.max_cooking_time_minutes = data.max_cooking_time_minutes;
+  }
+
+  if (data.household_size !== undefined) {
+    if (!Number.isInteger(data.household_size) || data.household_size < 1 || data.household_size > 10) {
+      throw new AppError(400, 'invalid_household_size', 'Household size must be between 1 and 10 people');
+    }
+    updates.household_size = data.household_size;
+  }
+
+  if (data.budget_level !== undefined) {
+    if (!['economical', 'moderate', 'premium'].includes(data.budget_level)) {
+      throw new AppError(400, 'invalid_budget_level', 'Budget level must be economical, moderate, or premium');
+    }
+    updates.budget_level = data.budget_level;
+  }
+
+  if (data.health_goals !== undefined) {
+    if (!Array.isArray(data.health_goals)) {
+      throw new AppError(400, 'invalid_health_goals', 'Health goals must be an array');
+    }
+    const validHealthGoals = ['weight_loss', 'muscle_gain', 'general_health'];
+    const invalidGoals = data.health_goals.filter((goal: string) => !validHealthGoals.includes(goal));
+    if (invalidGoals.length > 0) {
+      throw new AppError(400, 'invalid_health_goals', `Invalid health goals: ${invalidGoals.join(', ')}. Must be one of: ${validHealthGoals.join(', ')}`);
+    }
+    updates.health_goals = data.health_goals;
+  }
+
   if (Object.keys(updates).length === 0) {
     throw new AppError(400, 'no_updates', 'No valid fields to update');
   }
@@ -533,6 +652,9 @@ async function uploadAvatar(userId: string, body: string | null): Promise<APIRes
   }
 
   const data = parseJSON(body);
+  if (!data) {
+    throw new AppError(400, 'missing_body', 'Request body is required');
+  }
   const { image_data, content_type } = data;
 
   if (!image_data || !content_type) {
@@ -572,6 +694,52 @@ async function uploadAvatar(userId: string, body: string | null): Promise<APIRes
   } catch (error: any) {
     logStructured('ERROR', 'Upload avatar failed', { error: error.message, userId });
     throw error;
+  }
+}
+
+/**
+ * Generate presigned URL for avatar upload
+ * POST /user/profile/avatar/presigned
+ */
+async function generateAvatarPresignedUrl(userId: string, body: string | null): Promise<APIResponse> {
+  if (!body) {
+    throw new AppError(400, 'missing_body', 'Request body required');
+  }
+
+  const data = parseJSON(body);
+  const { file_type, file_size } = data;
+
+  // Debug log
+  logStructured('INFO', 'Avatar presigned URL request', { 
+    userId, 
+    file_type, 
+    file_size,
+    rawBody: body 
+  });
+
+  if (!file_type || !file_size) {
+    throw new AppError(400, 'missing_fields', 'file_type and file_size required');
+  }
+
+  try {
+    const result = await S3Service.generateAvatarPresignedUrl(userId, {
+      file_type,
+      file_size
+    });
+
+    const cdnUrl = S3Service.getCloudFrontUrl(result.key);
+
+    logStructured('INFO', 'Generated presigned URL for avatar', { userId, key: result.key });
+
+    return successResponse({
+      upload_url: result.upload_url,
+      avatar_url: cdnUrl, // Final URL to save in profile
+      expires_in: result.expires_in
+    });
+
+  } catch (error: any) {
+    logStructured('ERROR', 'Generate presigned URL failed', { error: error.message, userId });
+    throw new AppError(400, 'presigned_url_failed', error.message);
   }
 }
 

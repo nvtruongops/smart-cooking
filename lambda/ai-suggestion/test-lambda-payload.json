@@ -1,0 +1,8 @@
+﻿{
+  "httpMethod": "POST",
+  "path": "/v1/suggestions/ai",
+  "headers": {
+    "Authorization": "Bearer test-token"
+  },
+  "body": "{\"userId\":\"test-user\",\"ingredients\":[\"chicken\",\"rice\"]}"
+}

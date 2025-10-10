@@ -30,7 +30,8 @@ export interface CreatePostRequest {
 
 export interface PostsResponse {
   posts: Post[];
-  nextToken?: string;
+  next_key?: string;
+  nextToken?: string; // Keep for backward compatibility
 }
 
 /**
@@ -46,7 +47,8 @@ export async function getFeed(
     ...(nextToken && { nextToken }),
   });
 
-  const response = await fetch(`${API_URL}/posts/feed?${params}`, {
+  // Use Next.js API route as proxy to bypass CORS
+  const response = await fetch(`/api/posts?${params}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -94,12 +96,14 @@ export async function getUserPosts(
 
 /**
  * Create a new post
+ * Using Next.js API route as proxy to bypass CORS
  */
 export async function createPost(
   token: string,
   data: CreatePostRequest
 ): Promise<{ post: Post; message: string }> {
-  const response = await fetch(`${API_URL}/posts`, {
+  // Use Next.js API route as proxy to bypass CORS
+  const response = await fetch('/api/posts', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -140,13 +144,14 @@ export async function deletePost(
 
 /**
  * Add reaction to a post
+ * Using Next.js API route as proxy to bypass CORS
  */
 export async function addReaction(
   token: string,
   postId: string,
   reactionType: 'like' | 'love' | 'wow'
 ): Promise<{ message: string }> {
-  const response = await fetch(`${API_URL}/posts/${postId}/reactions`, {
+  const response = await fetch(`/api/posts/${postId}/reactions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

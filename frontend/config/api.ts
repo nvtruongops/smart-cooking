@@ -2,15 +2,15 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.smar
 
 export const API_ENDPOINTS = {
   // Ingredient endpoints
-  INGREDIENT_SEARCH: '/ingredients/search',
-  INGREDIENT_VALIDATE: '/ingredients/validate',
+  INGREDIENT_SEARCH: '/v1/ingredients/search',
+  INGREDIENT_VALIDATE: '/v1/ingredients/validate',
   
   // AI suggestion endpoints
-  AI_SUGGESTIONS: '/ai/suggest',
+  AI_SUGGESTIONS: '/v1/suggestions/ai',
   
   // User endpoints
-  USER_PROFILE: '/user/profile',
-  USER_PREFERENCES: '/user/preferences',
+  USER_PROFILE: '/v1/users/profile',
+  USER_PREFERENCES: '/v1/user/preferences',
   
   // Recipe endpoints
   RECIPES: '/recipes',

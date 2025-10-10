@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import IngredientInput from '../IngredientInput';
@@ -18,6 +19,32 @@ describe('IngredientInput', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Setup default mocks
+    mockSearchIngredients.mockResolvedValue([
+      {
+        ingredient_id: '1',
+        name: 'Thịt gà',
+        normalized_name: 'thit ga',
+        category: 'meat',
+        aliases: ['gà', 'chicken'],
+        match_type: 'exact',
+        match_score: 1.0
+      }
+    ]);
+
+    mockValidateIngredient.mockResolvedValue({
+      valid: true,
+      result: {
+        ingredient_id: '1',
+        name: 'Thịt gà',
+        normalized_name: 'thit ga',
+        category: 'meat',
+        aliases: ['gà', 'chicken'],
+        match_type: 'exact',
+        match_score: 1.0
+      }
+    });
   });
 
   it('renders input field with placeholder', () => {

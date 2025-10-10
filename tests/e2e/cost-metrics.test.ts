@@ -148,8 +148,8 @@ describe('E2E: Cost Optimization and Metrics', () => {
       // Don't fail the test - metrics might not be available yet
     }
   });
-}  
-test('Performance Benchmarking', async () => {
+
+  test('Performance Benchmarking', async () => {
     const performanceTests = [
       {
         name: 'Small ingredient list (3 items)',

@@ -1,5 +1,8 @@
 import { CloudWatchClient, PutMetricDataCommand, StandardUnit } from '@aws-sdk/client-cloudwatch';
-import { logStructured } from './monitoring-setup';
+
+const log = (level: string, message: string, data?: any) => {
+  console.log(JSON.stringify({ level, message, ...data, timestamp: new Date().toISOString() }));
+};
 
 /**
  * Performance metrics collection and reporting service
@@ -60,9 +63,9 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/Cache', metricData);
 
     } catch (error) {
-      logStructured('ERROR', 'Failed to record cache metrics', {
+      log('ERROR', 'Failed to record cache metrics', {
         metrics,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -115,9 +118,9 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/Database', metricData);
 
     } catch (error) {
-      logStructured('ERROR', 'Failed to record database metrics', {
+      log('ERROR', 'Failed to record database metrics', {
         metrics,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -193,9 +196,9 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/Lambda', metricData);
 
     } catch (error) {
-      logStructured('ERROR', 'Failed to record Lambda metrics', {
+      log('ERROR', 'Failed to record Lambda metrics', {
         metrics,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -254,9 +257,9 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/CostOptimization', metricData);
 
     } catch (error) {
-      logStructured('ERROR', 'Failed to record cost optimization metrics', {
+      log('ERROR', 'Failed to record cost optimization metrics', {
         metrics,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -327,9 +330,9 @@ export class PerformanceMetrics {
       await this.publishMetrics('SmartCooking/Performance/AI', metricData);
 
     } catch (error) {
-      logStructured('ERROR', 'Failed to record AI metrics', {
+      log('ERROR', 'Failed to record AI metrics', {
         metrics,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -355,16 +358,16 @@ export class PerformanceMetrics {
           }))
         }));
 
-        logStructured('DEBUG', 'Published performance metrics', {
+        log('DEBUG', 'Published performance metrics', {
           namespace,
           metricCount: batch.length
         });
 
       } catch (error) {
-        logStructured('ERROR', 'Failed to publish metrics batch', {
+        log('ERROR', 'Failed to publish metrics batch', {
           namespace,
           batchSize: batch.length,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
@@ -398,7 +401,7 @@ export class PerformanceTimer {
   stop(additionalMetrics?: Record<string, any>): number {
     const duration = Date.now() - this.startTime;
     
-    logStructured('DEBUG', 'Performance timer stopped', {
+    log('DEBUG', 'Performance timer stopped', {
       operation: this.operation,
       duration,
       ...additionalMetrics

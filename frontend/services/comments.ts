@@ -29,6 +29,7 @@ export interface CreateCommentRequest {
 
 /**
  * Get comments for a post
+ * Using Next.js API route as proxy to bypass CORS
  */
 export async function getComments(
   token: string,
@@ -41,7 +42,7 @@ export async function getComments(
     ...(nextToken && { nextToken }),
   });
 
-  const response = await fetch(`${API_URL}/posts/${postId}/comments?${params}`, {
+  const response = await fetch(`/api/posts/${postId}/comments?${params}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -57,13 +58,14 @@ export async function getComments(
 
 /**
  * Create a new comment
+ * Using Next.js API route as proxy to bypass CORS
  */
 export async function createComment(
   token: string,
   postId: string,
   data: CreateCommentRequest
 ): Promise<{ comment: Comment; message: string }> {
-  const response = await fetch(`${API_URL}/posts/${postId}/comments`, {
+  const response = await fetch(`/api/posts/${postId}/comments`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

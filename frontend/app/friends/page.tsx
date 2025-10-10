@@ -50,7 +50,8 @@ export default function FriendsPage() {
   };
 
   useEffect(() => {
-    loadFriends();
+    // TODO: Enable when /friends route is implemented on backend
+    // loadFriends();
   }, [token]);
 
   // Handle accept friend request

@@ -23,7 +23,7 @@ export interface PrivacySettingsResponse {
  * Get current privacy settings
  */
 export async function getPrivacySettings(token: string): Promise<PrivacySettingsResponse> {
-  const response = await fetch(`${API_URL}/user/privacy`, {
+  const response = await fetch(`${API_URL}/v1/users/privacy`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -44,7 +44,7 @@ export async function updatePrivacySettings(
   token: string,
   settings: Partial<PrivacySettings>
 ): Promise<{ message: string; settings: PrivacySettings }> {
-  const response = await fetch(`${API_URL}/user/privacy`, {
+  const response = await fetch(`${API_URL}/v1/users/privacy`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

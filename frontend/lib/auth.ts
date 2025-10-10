@@ -25,6 +25,7 @@ export interface SignUpParams {
   email: string;
   password: string;
   name: string;
+  username?: string;
 }
 
 export interface SignInParams {
@@ -40,7 +41,7 @@ export interface UserAttributes {
 
 class AuthService {
   // Sign up a new user
-  async signUp({ email, password, name }: SignUpParams): Promise<void> {
+  async signUp({ email, password, name, username }: SignUpParams): Promise<void> {
     if (!userPool) {
       throw new Error('Cognito UserPool not configured');
     }
@@ -49,6 +50,13 @@ class AuthService {
       new CognitoUserAttribute({ Name: 'email', Value: email }),
       new CognitoUserAttribute({ Name: 'name', Value: name }),
     ];
+
+    // Add username as custom attribute if provided
+    if (username) {
+      attributeList.push(
+        new CognitoUserAttribute({ Name: 'preferred_username', Value: username })
+      );
+    }
 
     return new Promise((resolve, reject) => {
       userPool.signUp(email, password, attributeList, [], (err, _result) => {

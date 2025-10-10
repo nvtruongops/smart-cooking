@@ -295,20 +295,20 @@ describe('Ingredient Validator Lambda - Unit Tests', () => {
       const event = createMockEvent({});
       const response = await handler(event);
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(422);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('validation_failed');
-      expect(body.message).toBe('ingredients field is required and must be an array');
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+      expect(body.error.message).toContain('Missing required field');
     });
 
     test('should reject empty ingredients array', async () => {
       const event = createMockEvent({ ingredients: [] });
       const response = await handler(event);
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(422);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('validation_failed');
-      expect(body.message).toBe('ingredients array cannot be empty');
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+      expect(body.error.message).toBe('ingredients array cannot be empty');
     });
 
     test('should handle IngredientService errors gracefully', async () => {
